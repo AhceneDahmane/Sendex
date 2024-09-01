@@ -1,0 +1,8 @@
+Lat: 37.774929
+Lng: -122.419418
+Date: 08/30/2024
+Time (UTC): 14:35:45
+Speed (km/h): 12.50
+Distance from last point (m): 5.25
+Total Distance Traveled (m): 150.75
+
