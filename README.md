@@ -1,5 +1,3 @@
-![Screenshot_20240826_234708-removebg-preview(1)](https://github.com/user-attachments/assets/c648a48c-b397-4ef9-9dc3-24a94adfd2de)
-
 ## Project Overview
 Sendex is a cutting-edge project aimed at revolutionizing athletic performance tracking for everyone from amateur to professional athletes. Our mission is to develop a smart, connected vest that captures essential performance metrics, making advanced training insights accessible and affordable for all sports clubs.
 
