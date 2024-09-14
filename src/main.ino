@@ -1,10 +1,10 @@
- 
 #include <SoftwareSerial.h>
 #include <TinyGPS++.h>
 #include <SD.h>
 
 // The serial connection to the GPS module
-SoftwareSerial ss(3, 4); // RX, TX
+SoftwareSerial ss(3, 4);  // RX, TX (for GPS)
+SoftwareSerial bt(5, 6);  // RX, TX (for Bluetooth)
 TinyGPSPlus gps;
 
 const int CS_PIN = 10;  // Chip Select pin for SD card module
@@ -18,10 +18,12 @@ File dataFile;
 
 bool isLogging = false;  // Flag to track logging status
 unsigned long buttonPressTime = 0;  // Time when button was pressed
+int buttonPressCounter = 0;  // Count button presses
 
 void setup() {
-  Serial.begin(9600);
-  ss.begin(9600);
+  Serial.begin(9600);  // Serial monitor
+  ss.begin(9600);  // GPS serial
+  bt.begin(9600);  // Bluetooth serial (HC-05)
   Serial.println("GPS Module Initialized");
 
   // Initialize SD card
@@ -61,11 +63,24 @@ void handleButton() {
 
     // If button is held for more than 3 seconds
     if (millis() - buttonPressTime >= 3000) {
+      buttonPressCounter++;  // Increment button press counter
+      Serial.print("Button pressed ");
+      Serial.print(buttonPressCounter);
+      Serial.println(" times.");
+
       if (isLogging) {
         stopLogging();
       } else {
         startLogging();
       }
+
+      if (buttonPressCounter >= 5) {
+        // When button is pressed 5 times, trigger Bluetooth sync
+        Serial.println("5 presses detected, initiating data sync...");
+        syncDataOverBluetooth();
+        buttonPressCounter = 0;  // Reset counter after sending data
+      }
+
       buttonPressTime = 0;  // Reset button press time
       delay(500);  // Debounce delay
     }
@@ -167,5 +182,24 @@ void logGPSData() {
       prevLat = gps.location.lat();
       prevLng = gps.location.lng();
     }
+  }
+}
+
+void syncDataOverBluetooth() {
+  // Open the file to read data
+  dataFile = SD.open("gps_data.txt");
+  if (dataFile) {
+    Serial.println("Sending data via Bluetooth...");
+
+    // Read the file line by line
+    while (dataFile.available()) {
+      String line = dataFile.readStringUntil('\n');
+      bt.println(line);  // Send each line over Bluetooth
+    }
+
+    dataFile.close();
+    Serial.println("Data sync complete.");
+  } else {
+    Serial.println("Error opening file for Bluetooth sync!");
   }
 }
