@@ -1,8 +1,8 @@
+#include <TinyGPSPlus.h>
 #include <SoftwareSerial.h>
-#include <TinyGPS++.h>
 
 // The serial connection to the GPS module
-SoftwareSerial ss(3, 4); // RX, TX for GPS
+SoftwareSerial ss(4, 3); // RX, TX for GPS
 TinyGPSPlus gps;
 
 // The serial connection to the Bluetooth HC-06 module

@@ -1,0 +1,38 @@
+[
+  {
+	"sessionId": "318a6c66-08e1-45f8-918a-fc410509bf66",
+	"playerId": "P001",
+	"startTime": "30092024_153444",
+	"endTime": "30092024_163444",
+	"duration": 60,
+	"status": "completed",
+	"batteryLevel": 85,
+	"gpsData": [
+  	{
+    	"lat": 54.88997,
+    	"long": -42.9909,
+    	"speed": 0,
+    	"distance": 0.0,
+    	"altitude": 123.4,
+    	"acceleration": 0,
+    	"heading": 90,
+    	"heartRate": 80,
+    	"signalStrength": 98,
+    	"timestamp": "30092024_153446"
+  	},
+  	{
+    	"lat": 54.89010,
+    	"long": -42.9910,
+    	"speed": 2.5,
+    	"distance": 1.2,
+    	"altitude": 123.5,
+    	"acceleration": 0.5,
+    	"heading": 95,
+    	"heartRate": 85,
+    	"signalStrength": 97,
+    	"timestamp": "30092024_153447"
+  	}
+	]
+  }
+]
+

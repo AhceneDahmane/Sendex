@@ -1,0 +1,49 @@
++-------------------------------------+
+|               Session               |
++-------------------------------------+
+| - sessionId: std::string            |
+| - player: Player                    |
+| - startTime: std::string            |
+| - endTime: std::string              |
+| - duration: int                     |
+| - status: SessionStatus             |
+| - batteryLevel: int                 |
+| - gpsData: std::vector<GPSData>     |
++-------------------------------------+
+| + addGPSData(gpsData: GPSData): void|
+| + displaySessionData(): void        |
++-------------------------------------+
+
++-------------------------------------+
+|              Player                 |
++-------------------------------------+
+| - playerId: std::string             |
+| - name: std::string                 |
+| - age: int                          |
++-------------------------------------+
+| + displayPlayerInfo(): void         |
++-------------------------------------+
+
++-------------------------------------+
+|            SessionStatus (enum)     |
++-------------------------------------+
+| - Active                            |
+| - Paused                            |
+| - Completed                         |
++-------------------------------------+
+
++-------------------------------------+
+|              GPSData                |
++-------------------------------------+
+| - lat: double                       |
+| - long: double                      |
+| - speed: double                     |
+| - distance: double                  |
+| - altitude: double                  |
+| - acceleration: double              |
+| - heading: int                      |
+| - heartRate: int                    |
+| - signalStrength: int               |
+| - timestamp: std::string            |
++-------------------------------------+
+
