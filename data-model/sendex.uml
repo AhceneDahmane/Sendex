@@ -1,0 +1,29 @@
+@startuml
+
+actor User as U
+participant "Sendex App" as App
+participant "Sendex Sensor" as Sensor
+
+U -> App : Open App
+App -> Sensor : Search and Connect to Sensor
+Sensor -> App : Connection Established
+
+U -> App : Start New Session
+App -> Sensor : Setup Session
+Sensor -> Sensor : Start Data Collection
+
+U -> U : Run and Play
+
+U -> App : Stop Session
+App -> Sensor : End Session
+Sensor -> App : Session Ended
+
+U -> App : Sync Data
+App -> Sensor : Request Data
+Sensor -> App : Send GPS and Performance Data
+
+
+App -> U : Display Analytics
+
+@enduml
+
