@@ -1,0 +1,99 @@
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+#include <SD.h>
+
+// The serial connection to the GPS module
+SoftwareSerial ss(4, 3); // RX, TX
+TinyGPSPlus gps;
+
+// SD card chip select pin
+const int chipSelect = 10; // Change this to your SD card module's chip select pin
+File dataFile;
+
+void setup() {
+  Serial.begin(9600);
+  ss.begin(9600);
+  Serial.println("GPS Module Initialized");
+
+  // Initialize SD card
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Initialization of SD card failed!");
+    return;
+  }
+  Serial.println("SD card initialized.");
+
+  // Create or open the file for writing
+  dataFile = SD.open("gps___.txt", FILE_WRITE);
+  if (!dataFile) {
+    Serial.println("Error opening gps.txt");
+  } else {
+    Serial.println("gps.txt is ready for writing.");
+    dataFile.close(); // Close the file after checking
+  }
+}
+
+void loop() {
+
+  while (ss.available() > 0) {
+    gps.encode(ss.read());
+
+    if (gps.location.isUpdated()) {
+      double latitude = gps.location.lat();
+      double longitude = gps.location.lng();
+      double speed = gps.speed.kmph(); // Speed in km/h
+
+      // Print to Serial Monitor
+      Serial.print("Timestamp : ");
+      Serial.print(getCurrentTimestamp());
+      Serial.print(" Latitude: ");
+      Serial.print(latitude, 6); // Print latitude with 6 decimal places
+      Serial.print(" Longitude: ");
+      Serial.print(longitude, 6); // Print longitude with 6 decimal places
+      Serial.print(" Speed: ");
+      Serial.print(speed); // Print speed in km/h
+      Serial.println(" km/h");
+
+      // Write to SD card
+      dataFile = SD.open("gps___.txt", FILE_WRITE);
+      if (dataFile) {
+        Serial.print("Writing to gps.txt...");
+        dataFile.print("Timestamp : ");
+        dataFile.print(getCurrentTimestamp());
+        dataFile.print(" Latitude: ");
+        dataFile.print(latitude, 6);
+        dataFile.print(", Longitude: ");
+        dataFile.print(longitude, 6);
+        dataFile.print(", Speed: ");
+        dataFile.print(speed);
+        dataFile.println(" km/h");
+
+        dataFile.close(); // Close the file after writing
+        Serial.println("done.");
+      } else {
+        Serial.println("Error opening gps.txt for writing.");
+      }
+    }
+  }
+}
+
+String getCurrentTimestamp() {
+  // Check if the GPS date and time are valid before formatting
+  if (gps.date.isValid() && gps.time.isValid()) {
+    // Get year, month, day, hour, minute, second from the GPS
+    int year = gps.date.year();
+    int month = gps.date.month();
+    int day = gps.date.day();
+    int hour = gps.time.hour();
+    int minute = gps.time.minute();
+    int second = gps.time.second();
+
+    // Format the timestamp as a string "YYYY-MM-DD HH:MM:SS"
+    char timestamp[20];
+    sprintf(timestamp, "%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, second);
+    return String(timestamp);
+  } else {
+    // Return a default value if the GPS date/time is not valid yet
+    return "0000-00-00 00:00:00";
+  }
+}
+

@@ -1,7 +1,6 @@
 #include <TinyGPSPlus.h>
 #include <SoftwareSerial.h>
 
-// The serial connection to the GPS module
 SoftwareSerial ss(4, 3); // RX, TX for GPS
 TinyGPSPlus gps;
 
