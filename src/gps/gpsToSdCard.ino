@@ -9,7 +9,7 @@ TinyGPSPlus gps;
 // SD card chip select pin
 const int chipSelect = 10; // Change this to your SD card module's chip select pin
 File dataFile;
-
+String filename = "gps.txt";
 void setup() {
   Serial.begin(9600);
   ss.begin(9600);
@@ -23,11 +23,11 @@ void setup() {
   Serial.println("SD card initialized.");
 
   // Create or open the file for writing
-  dataFile = SD.open("gps___.txt", FILE_WRITE);
+  dataFile = SD.open(filename, FILE_WRITE);
   if (!dataFile) {
-    Serial.println("Error opening gps.txt");
+    Serial.println("Error opening file");
   } else {
-    Serial.println("gps.txt is ready for writing.");
+    Serial.println("file is ready for writing.");
     dataFile.close(); // Close the file after checking
   }
 }
@@ -96,4 +96,3 @@ String getCurrentTimestamp() {
     return "0000-00-00 00:00:00";
   }
 }
-
