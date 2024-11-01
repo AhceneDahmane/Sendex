@@ -1,0 +1,74 @@
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+#include <SD.h>
+
+TinyGPSPlus gps;
+SoftwareSerial ss(3, 4); // RX, TX
+
+const int chipSelect = 10;
+const int buttonPin = 2;
+const int ledPin = 6;
+
+File gpsFile;
+bool recording = false;
+
+void setup() {
+  Serial.begin(9600);
+  ss.begin(9600);
+
+  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(ledPin, OUTPUT);
+
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Erreur initialisation SD card!");
+    return;
+  }
+
+  Serial.println("Module GPS et SD card initialisés.");
+}
+
+void loop() {
+  // Lecture du GPS
+  while (ss.available() > 0) {
+    gps.encode(ss.read());
+
+    if (gps.location.isUpdated() && recording) {
+      logGPSData();
+    }
+  }
+
+  // Gestion du bouton pour démarrer/arrêter l'enregistrement
+  if (digitalRead(buttonPin) == LOW) {
+    delay(200);  // Anti-rebond
+    recording = !recording;
+
+    if (recording) {
+      // Créer un fichier avec un nom unique
+      String filename = "gps_" + String(millis()) + ".txt";
+      gpsFile = SD.open(filename, FILE_WRITE);
+
+      if (gpsFile) {
+        digitalWrite(ledPin, HIGH);
+        Serial.println("Enregistrement démarré.");
+      } else {
+        Serial.println("Erreur de création de fichier.");
+        recording = false;
+      }
+    } else {
+      if (gpsFile) {
+        gpsFile.close();
+        digitalWrite(ledPin, LOW);
+        Serial.println("Enregistrement arrêté.");
+      }
+    }
+  }
+}
+
+void logGPSData() {
+  if (gpsFile) {
+    String data = String(gps.location.lat(), 6) + ", " + String(gps.location.lng(), 6) + ", " + gps.time.value();
+    gpsFile.println(data);
+    Serial.println("Données GPS enregistrées : " + data);
+    gpsFile.flush();  // Assure que les données sont bien écrites sur la carte SD
+  }
+}
