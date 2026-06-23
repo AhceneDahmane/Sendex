@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sendex — Real-Time Athletic Performance Tracking for Players & Clubs</title>
+  <meta name="description" content="Sendex is a smart GPS vest and mobile app that gives athletes and clubs pro-level performance tracking — sprint analysis, heart rate, heatmaps, and PDF reports.">
+  <meta name="keywords" content="sports tracking, GPS vest, athlete performance, football tracker, sprint analysis, heart rate monitor, club management">
+  <link rel="canonical" href="https://getsendex.com/">
+  <meta name="theme-color" content="#0d1117">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Sendex — Athletic Performance Tracking">
+  <meta property="og:description" content="Track every sprint. Own every game. Smart vest + app for players and clubs.">
+  <meta property="og:image" content="https://getsendex.com/og-image.png">
+  <meta property="og:url" content="https://getsendex.com/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Sendex — Athletic Performance Tracking">
+  <meta name="twitter:description" content="Smart vest + app for real-time sports performance tracking.">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": "Sendex",
+    "description": "Smart GPS vest and mobile app for athletic performance tracking. Real-time sprint analysis, heart rate monitoring, heatmaps, and session reports for individual players and clubs.",
+    "offers": [
+      { "@type": "Offer", "name": "Player Plan", "price": "49", "priceCurrency": "EUR" },
+      { "@type": "Offer", "name": "Club Plan", "price": "39", "priceCurrency": "EUR" }
+    ]
+  }
+  </script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦺%3C/text%3E%3C/svg%3E">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* Nav */
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; max-width: 1100px; margin: 0 auto; position: sticky; top: 0; z-index: 100; background: #0d1117f0; backdrop-filter: blur(8px); }
+    .logo { font-size: 24px; font-weight: 800; color: #58a6ff; letter-spacing: -0.5px; }
+    .nav-links { display: flex; gap: 24px; align-items: center; }
+    .nav-links a { color: #8b949e; text-decoration: none; font-size: 14px; transition: color .2s; }
+    .nav-links a:hover { color: #c9d1d9; }
+
+    /* Fade-in animation */
+    .fade-in { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+    /* Hero */
+    .hero { padding: 100px 0 60px; text-align: center; }
+    .hero h1 { font-size: 52px; font-weight: 800; color: #f0f6fc; margin-bottom: 16px; line-height: 1.15; letter-spacing: -1px; }
+    .hero h1 span { color: #58a6ff; }
+    .hero p { font-size: 18px; color: #8b949e; max-width: 600px; margin: 0 auto 32px; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: #161b22; border: 1px solid #30363d; border-radius: 100px; padding: 6px 16px; margin-bottom: 24px; font-size: 13px; color: #8b949e; }
+    .hero-badge span { color: #3fb950; }
+    .btn-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 15px; text-decoration: none; cursor: pointer; border: none; transition: background .2s, border-color .2s, transform .15s; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-outline { background: transparent; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-outline:hover { border-color: #8b949e; }
+
+    /* Device showcase */
+    .device-showcase { margin-top: 48px; display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; }
+    .device-card { background: #161b22; border: 1px solid #21262d; border-radius: 16px; padding: 32px 24px; width: 280px; text-align: center; transition: border-color .3s, transform .3s; }
+    .device-card:hover { border-color: #58a6ff44; transform: translateY(-4px); }
+    .device-card .icon { font-size: 44px; margin-bottom: 12px; }
+    .device-card h3 { font-size: 18px; margin-bottom: 8px; color: #f0f6fc; }
+    .device-card p { font-size: 13px; color: #8b949e; }
+
+    /* Sections */
+    section { padding: 80px 0; }
+    .section-title { text-align: center; font-size: 32px; font-weight: 700; color: #f0f6fc; margin-bottom: 48px; }
+    .section-subtitle { text-align: center; color: #8b949e; margin-top: -32px; margin-bottom: 48px; font-size: 16px; }
+
+    /* Features */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+    .feature-card { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 24px; transition: border-color .3s, transform .3s; }
+    .feature-card:hover { border-color: #58a6ff44; transform: translateY(-2px); }
+    .feature-card .emoji { font-size: 28px; margin-bottom: 12px; }
+    .feature-card h4 { font-size: 16px; margin-bottom: 8px; color: #f0f6fc; }
+    .feature-card p { font-size: 13px; color: #8b949e; }
+
+    /* Testimonials */
+    .testimonials-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    .testimonial { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 28px; }
+    .testimonial .stars { color: #d29922; font-size: 14px; margin-bottom: 12px; }
+    .testimonial blockquote { font-style: italic; color: #c9d1d9; font-size: 14px; margin-bottom: 16px; }
+    .testimonial cite { display: flex; align-items: center; gap: 12px; }
+    .testimonial cite img { width: 36px; height: 36px; border-radius: 50%; background: #21262d; }
+    .testimonial cite strong { font-size: 14px; color: #f0f6fc; }
+    .testimonial cite span { font-size: 12px; color: #8b949e; }
+
+    /* Pricing */
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: start; }
+    .plan { background: #161b22; border: 1px solid #21262d; border-radius: 16px; padding: 32px; position: relative; transition: border-color .3s, transform .3s; }
+    .plan:hover { transform: translateY(-3px); }
+    .plan.featured { border-color: #58a6ff; }
+    .plan.featured::before { content: "Popular"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #58a6ff; color: #0d1117; font-size: 12px; font-weight: 700; padding: 4px 16px; border-radius: 100px; }
+    .plan h3 { font-size: 20px; color: #f0f6fc; }
+    .plan .price { font-size: 36px; font-weight: 800; color: #f0f6fc; margin: 16px 0 4px; }
+    .plan .price small { font-size: 14px; font-weight: 400; color: #8b949e; }
+    .plan .desc { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+    .plan ul { list-style: none; }
+    .plan ul li { padding: 8px 0; font-size: 14px; color: #c9d1d9; }
+    .plan ul li::before { content: "✓"; color: #3fb950; margin-right: 10px; font-weight: 700; }
+    .plan .btn { margin-top: 24px; width: 100%; justify-content: center; }
+
+    /* Steps */
+    .steps { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+    .step { background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 28px; flex: 1; min-width: 200px; max-width: 300px; text-align: center; transition: border-color .3s, transform .3s; }
+    .step:hover { border-color: #58a6ff44; transform: translateY(-2px); }
+    .step .num { width: 40px; height: 40px; border-radius: 50%; background: #58a6ff20; color: #58a6ff; display: flex; align-items: center; justify-content: center; font-weight: 700; margin: 0 auto 12px; font-size: 18px; }
+    .step h4 { font-size: 16px; margin-bottom: 8px; color: #f0f6fc; }
+    .step p { font-size: 13px; color: #8b949e; }
+
+    /* FAQ */
+    .faq-list { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .faq-item { border: 1px solid #21262d; border-radius: 12px; overflow: hidden; }
+    .faq-question { width: 100%; padding: 18px 20px; background: #161b22; color: #c9d1d9; font-size: 15px; font-weight: 600; text-align: left; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background .2s; }
+    .faq-question:hover { background: #1c2128; }
+    .faq-question .arrow { transition: transform .3s; font-size: 12px; }
+    .faq-item.open .faq-question .arrow { transform: rotate(180deg); }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height .4s ease, padding .4s ease; padding: 0 20px; }
+    .faq-item.open .faq-answer { max-height: 200px; padding: 0 20px 18px; }
+    .faq-answer p { font-size: 14px; color: #8b949e; }
+
+    /* CTA */
+    .cta-section { text-align: center; padding: 80px 0; border-top: 1px solid #21262d; border-bottom: 1px solid #21262d; }
+    .cta-section h2 { font-size: 32px; font-weight: 700; color: #f0f6fc; margin-bottom: 12px; }
+    .cta-section p { color: #8b949e; margin-bottom: 28px; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .cta-section .email-form { display: flex; gap: 8px; max-width: 400px; margin: 0 auto; }
+    .cta-section input { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid #30363d; background: #161b22; color: #c9d1d9; font-size: 14px; outline: none; transition: border-color .2s; }
+    .cta-section input:focus { border-color: #58a6ff; }
+
+    /* Footer */
+    footer { text-align: center; padding: 32px; color: #484f58; font-size: 13px; }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .plans { grid-template-columns: 1fr; }
+      .hero { padding: 60px 0 40px; }
+      section { padding: 50px 0; }
+      nav { padding: 16px 16px; }
+      .nav-links a:not(.btn) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="logo">SENDEX</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#testimonials">Testimonials</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+      <a href="#waitlist" class="btn btn-primary" style="padding: 8px 20px;">Get Started</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container fade-in">
+      <div class="hero-badge">⚡ Now in beta — <span>join the waitlist</span></div>
+      <h1>Track every sprint.<br>Own <span>every game</span>.</h1>
+      <p>Sendex is a smart vest + mobile app that gives players and coaches pro-level performance tracking at an affordable price.</p>
+      <div class="btn-group">
+        <a href="#pricing" class="btn btn-primary">See plans</a>
+        <a href="#how" class="btn btn-outline">How it works</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Device showcase -->
+  <div class="container device-showcase">
+    <div class="device-card fade-in">
+      <div class="icon">🦺</div>
+      <h3>Sendex Vest</h3>
+      <p>Lightweight smart vest with GPS, heart rate, accelerometer, and Bluetooth. 8h battery.</p>
+    </div>
+    <div class="device-card fade-in">
+      <div class="icon">📱</div>
+      <h3>Mobile App</h3>
+      <p>Real-time dashboard, session history, heatmaps, and exportable reports for iOS & Android.</p>
+    </div>
+    <div class="device-card fade-in">
+      <div class="icon">☁️</div>
+      <h3>Club Portal</h3>
+      <p>Manage all your players, assign vests, review sessions, and track progress over time.</p>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="container">
+      <h2 class="section-title fade-in">What you get</h2>
+      <div class="features-grid">
+        <div class="feature-card fade-in"><div class="emoji">📍</div><h4>GPS Tracking</h4><p>Real-time position, distance covered, and heatmaps of your movement on the pitch.</p></div>
+        <div class="feature-card fade-in"><div class="emoji">⚡</div><h4>Sprint Analysis</h4><p>Automatic sprint detection, count, distance per sprint, and peak speed measurement.</p></div>
+        <div class="feature-card fade-in"><div class="emoji">❤️</div><h4>Heart Rate</h4><p>Live BPM monitoring with zone analysis to track intensity and recovery during sessions.</p></div>
+        <div class="feature-card fade-in"><div class="emoji">📊</div><h4>Performance Reports</h4><p>Export PDF or CSV reports per session or aggregated across weeks and months.</p></div>
+        <div class="feature-card fade-in"><div class="emoji">👥</div><h4>Multi-Player</h4><p>Clubs can manage unlimited players, each with their own device and session history.</p></div>
+        <div class="feature-card fade-in"><div class="emoji">🔋</div><h4>All-Day Battery</h4><p>8+ hour battery life with intelligent power management for full sessions.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section id="testimonials">
+    <div class="container fade-in">
+      <h2 class="section-title">Trusted by athletes & coaches</h2>
+      <div class="testimonials-grid">
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+          <blockquote>"The heatmap alone changed how I train. I can finally see where I'm spending most of my time on the pitch and adjust my runs."</blockquote>
+          <cite><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%2321262d'/%3E%3Ctext x='20' y='26' text-anchor='middle' font-size='20' fill='%238b949e'%3EA%3C/text%3E%3C/svg%3E" alt=""><div><strong>Amir K.</strong><br><span>Football player, CA Paris</span></div></cite>
+        </div>
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+          <blockquote>"We equipped our U17 squad with 12 vests. The club dashboard gives me everything I need to plan the next week's training."</blockquote>
+          <cite><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%2321262d'/%3E%3Ctext x='20' y='26' text-anchor='middle' font-size='20' fill='%238b949e'%3ES%3C/text%3E%3C/svg%3E" alt=""><div><strong>Sarah M.</strong><br><span>Academy coach, FC London</span></div></cite>
+        </div>
+        <div class="testimonial">
+          <div class="stars">★★★★★</div>
+          <blockquote>"Setup took 2 minutes. The app paired with the vest instantly and the session data is seriously detailed. Worth every euro."</blockquote>
+          <cite><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%2321262d'/%3E%3Ctext x='20' y='26' text-anchor='middle' font-size='20' fill='%238b949e'%3EJ%3C/text%3E%3C/svg%3E" alt=""><div><strong>Jorge R.</strong><br><span>Rugby player, Biarritz Olympique</span></div></cite>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing">
+    <div class="container">
+      <h2 class="section-title fade-in">Simple pricing</h2>
+      <p class="section-subtitle fade-in">No hidden fees. No long-term contracts.</p>
+      <div class="plans">
+        <div class="plan fade-in">
+          <h3>Player</h3>
+          <div class="price">€49<small>/vest</small></div>
+          <p class="desc">For individual athletes who want to track their own performance.</p>
+          <ul>
+            <li>1 Sendex vest</li>
+            <li>Mobile app access</li>
+            <li>Real-time dashboard</li>
+            <li>Session history & reports</li>
+            <li>CSV & PDF export</li>
+          </ul>
+          <a href="#waitlist" class="btn btn-outline">Join waitlist</a>
+        </div>
+        <div class="plan featured fade-in">
+          <h3>Club</h3>
+          <div class="price">€39<small>/vest/mo</small></div>
+          <p class="desc">For clubs and academies managing multiple athletes.</p>
+          <ul>
+            <li>10+ Sendex vests</li>
+            <li>Club management portal</li>
+            <li>Unlimited player profiles</li>
+            <li>Bulk session export</li>
+            <li>Dedicated support</li>
+            <li>Custom branding</li>
+          </ul>
+          <a href="#waitlist" class="btn btn-primary">Contact sales</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how">
+    <div class="container">
+      <h2 class="section-title fade-in">How it works</h2>
+      <div class="steps">
+        <div class="step fade-in"><div class="num">1</div><h4>Wear the vest</h4><p>Put on the lightweight Sendex vest before training or match.</p></div>
+        <div class="step fade-in"><div class="num">2</div><h4>Open the app</h4><p>Connect via Bluetooth and start a session with one tap.</p></div>
+        <div class="step fade-in"><div class="num">3</div><h4>Play</h4><p>Run, sprint, jump — the vest captures everything in real time.</p></div>
+        <div class="step fade-in"><div class="num">4</div><h4>Review & improve</h4><p>Check your heatmap, speed, sprints, and export reports after each session.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq">
+    <div class="container fade-in">
+      <h2 class="section-title">Frequently asked questions</h2>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">How does the vest connect to the app? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>The vest uses Bluetooth Low Energy (BLE) to pair with your phone. Open the Sendex app, tap the vest you want to connect to, and you're live.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">Is the vest machine-washable? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>The electronics module is removable. The vest fabric is machine-washable at 30 °C. The sensor pod should be wiped clean with a damp cloth.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">Can I use Sendex without a club? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>Absolutely. The Player plan is designed for individual athletes. You get the full tracking, heatmap, and report features without any club management.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">How long does the battery last? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>Up to 8 hours of continuous tracking on a full charge. The vest charges via USB-C and takes about 2 hours to charge from empty.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">What sports does Sendex support? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>Sendex works for any sport with running: football, rugby, basketball, handball, tennis, athletics, hockey, and more. The heatmap and sprint detection adapt automatically.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="this.parentElement.classList.toggle('open')">Can I export my data? <span class="arrow">▾</span></button>
+          <div class="faq-answer"><p>Yes. Every session can be exported as CSV or PDF. Club admins can also export aggregated data across all their players for deeper analysis.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section" id="waitlist">
+    <div class="container fade-in">
+      <h2>Ready to level up?</h2>
+      <p>Join the waitlist. Be the first to know when Sendex ships.</p>
+      <form class="email-form" onsubmit="event.preventDefault(); this.querySelector('input').value=''; this.querySelector('button').textContent='Done ✓'; setTimeout(()=>{this.querySelector('button').textContent='Notify me'},2500);">
+        <input type="email" placeholder="Enter your email" required>
+        <button type="submit" class="btn btn-primary">Notify me</button>
+      </form>
+    </div>
+  </section>
+
+  <footer>
+    <p>&copy; 2026 Sendex. All rights reserved.</p>
+  </footer>
+
+  <script>
+    // Intersection Observer for fade-in animations
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: .15 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
