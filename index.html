@@ -102,6 +102,7 @@
       <a href="#features" onclick="showPage('home')">Features</a>
       <a href="#testimonials" onclick="showPage('home')">Testimonials</a>
       <a href="#pricing" onclick="showPage('home')">Pricing</a>
+      <a href="app/" style="color:#58a6ff">App</a>
       <span id="navAuth">
         <button class="btn-ghost" onclick="showPage('login')">Log in</button>
         <button class="btn btn-primary" style="padding:8px 20px" onclick="showPage('signup')">Get Started</button>
@@ -127,7 +128,7 @@
     </div>
     <div class="container device-showcase">
       <div class="device-card"><div class="icon">🦺</div><h3>Sendex Vest</h3><p>Lightweight smart vest with GPS, heart rate, accelerometer, and Bluetooth. 8h battery.</p></div>
-      <div class="device-card"><div class="icon">📱</div><h3>Mobile App</h3><p>Real-time dashboard, session history, heatmaps, and exportable reports for iOS & Android.</p></div>
+      <div class="device-card" onclick="location.href='app/'" style="cursor:pointer"><div class="icon">📱</div><h3>Mobile App</h3><p>Real-time dashboard, session history, heatmaps, and exportable reports for iOS & Android.</p></div>
       <div class="device-card"><div class="icon">☁️</div><h3>Club Portal</h3><p>Manage all your players, assign vests, review sessions, and track progress over time.</p></div>
     </div>
 
@@ -237,10 +238,10 @@
       <h2>Welcome, <span id="dashName"></span> 👋</h2>
       <span class="role-badge" id="dashRole"></span>
       <div class="dash-cards">
-        <div class="dash-card"><div class="icon">📱</div><h4>Mobile App</h4><p>Download the Sendex app to connect with your vest and start tracking.</p><button class="btn btn-primary" onclick="alert('App download link coming soon!')">Download App</button></div>
-        <div class="dash-card"><div class="icon">🦺</div><h4>Your Devices</h4><p>Manage your Sendex vests, check battery, and view session history.</p><button class="btn btn-outline" onclick="alert('Device management coming soon!')">View Devices</button></div>
-        <div class="dash-card"><div class="icon">👥</div><h4>Players</h4><p>Manage your club's players, assign vests, and review their sessions.</p><button class="btn btn-outline" onclick="alert('Player management coming soon!')">Manage Players</button></div>
-        <div class="dash-card"><div class="icon">📊</div><h4>Session History</h4><p>View all your past sessions with heatmaps, speed charts, and exports.</p><button class="btn btn-outline" onclick="alert('Session history coming soon!')">View Sessions</button></div>
+        <div class="dash-card"><div class="icon">📱</div><h4>Mobile App</h4><p>Launch the Sendex web app to connect your vest and start tracking.</p><a href="app/" class="btn btn-primary" style="display:inline-flex;margin-top:16px">Open App</a></div>
+        <div class="dash-card"><div class="icon">🦺</div><h4>Your Devices</h4><p>Manage your Sendex vests, check battery, and view session history.</p><a href="app/" class="btn btn-outline" style="display:inline-flex;margin-top:16px">View Devices</a></div>
+        <div class="dash-card"><div class="icon">👥</div><h4>Players</h4><p>Manage your club's players, assign vests, and review their sessions.</p><a href="app/" class="btn btn-outline" style="display:inline-flex;margin-top:16px">Manage Players</a></div>
+        <div class="dash-card"><div class="icon">📊</div><h4>Session History</h4><p>View all your past sessions with heatmaps, speed charts, and exports.</p><a href="app/" class="btn btn-outline" style="display:inline-flex;margin-top:16px">View Sessions</a></div>
       </div>
     </div>
   </div>
