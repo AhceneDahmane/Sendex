@@ -1,0 +1,18 @@
+{
+  "name": "Sendex Vest",
+  "version": "1.2.3",
+  "home_assistant_domain": "sendex",
+  "funding_url": "https://getsendex.com",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "sendex-firmware-v1.2.3.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

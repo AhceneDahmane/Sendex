@@ -13,6 +13,8 @@ class RegisterPlayerDialog extends StatefulWidget {
 class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
   late TextEditingController _nameCtrl;
   late TextEditingController _clubCtrl;
+  late TextEditingController _lengthCtrl;
+  late TextEditingController _widthCtrl;
   late String _sport;
   late String _position;
   bool get _editing => widget.existing != null;
@@ -23,6 +25,8 @@ class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
     final e = widget.existing;
     _nameCtrl = TextEditingController(text: e?.name ?? '');
     _clubCtrl = TextEditingController(text: e?.club ?? '');
+    _lengthCtrl = TextEditingController(text: '${e?.fieldLength ?? PlayerInfo.defaultLength(e?.sport ?? 'Football')}');
+    _widthCtrl = TextEditingController(text: '${e?.fieldWidth ?? PlayerInfo.defaultWidth(e?.sport ?? 'Football')}');
     _sport = e?.sport ?? 'Football';
     _position = e?.position ?? '';
   }
@@ -31,7 +35,14 @@ class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
   void dispose() {
     _nameCtrl.dispose();
     _clubCtrl.dispose();
+    _lengthCtrl.dispose();
+    _widthCtrl.dispose();
     super.dispose();
+  }
+
+  void _updateDefaults() {
+    _lengthCtrl.text = '${PlayerInfo.defaultLength(_sport)}';
+    _widthCtrl.text = '${PlayerInfo.defaultWidth(_sport)}';
   }
 
   @override
@@ -71,18 +82,23 @@ class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
                 prefixIcon: Icon(Icons.sports_soccer),
                 border: OutlineInputBorder(),
               ),
-              items: PlayerInfo.sports.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              items: PlayerInfo.sports
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .toList(),
               onChanged: (v) {
                 if (v == null) return;
                 setState(() {
                   _sport = v;
                   _position = '';
+                  _updateDefaults();
                 });
               },
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
-              value: _position.isNotEmpty && positions.contains(_position) ? _position : null,
+              value: _position.isNotEmpty && positions.contains(_position)
+                  ? _position
+                  : null,
               decoration: const InputDecoration(
                 labelText: "Position",
                 prefixIcon: Icon(Icons.straighten),
@@ -90,15 +106,50 @@ class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
               ),
               items: [
                 const DropdownMenuItem(value: '', child: Text("— None —")),
-                ...positions.map((p) => DropdownMenuItem(value: p, child: Text(p))),
+                ...positions
+                    .map((p) => DropdownMenuItem(value: p, child: Text(p))),
               ],
               onChanged: (v) => setState(() => _position = v ?? ''),
+            ),
+            const SizedBox(height: 14),
+            const Divider(),
+            Text("Field Dimensions (meters)",
+                style: TextStyle(fontSize: 13, color: Colors.grey[400])),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _lengthCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Length (m)",
+                      prefixIcon: Icon(Icons.straighten),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _widthCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Width (m)",
+                      prefixIcon: Icon(Icons.straighten),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel")),
         FilledButton(
           onPressed: () {
             final name = _nameCtrl.text.trim();
@@ -108,6 +159,8 @@ class _RegisterPlayerDialogState extends State<RegisterPlayerDialog> {
               club: _clubCtrl.text.trim(),
               sport: _sport,
               position: _position,
+              fieldLength: double.tryParse(_lengthCtrl.text),
+              fieldWidth: double.tryParse(_widthCtrl.text),
             ));
           },
           child: Text(_editing ? "Save" : "Register"),

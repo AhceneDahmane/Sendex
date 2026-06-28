@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/player_info.dart';
 import '../services/storage_service.dart';
 import '../widgets/register_player_dialog.dart';
-import 'club_player_screen.dart';
+import 'player_profile_screen.dart';
 
 class ClubScreen extends StatefulWidget {
   const ClubScreen({super.key});
@@ -15,8 +15,7 @@ class _ClubScreenState extends State<ClubScreen> {
   final _storage = StorageService.instance;
 
   void _logout() {
-    _storage.isLoggedIn = false;
-    _storage.playerName = null;
+    _storage.logout();
     Navigator.pushReplacementNamed(context, '/login');
   }
 
@@ -42,15 +41,36 @@ class _ClubScreenState extends State<ClubScreen> {
     }
   }
 
+  Future<void> _deletePlayer(PlayerInfo player) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Player"),
+        content: Text("Remove ${player.name} and all their data?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text("Delete", style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await _storage.deletePlayerInfo(player.name);
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final players = _storage.getPlayerInfoList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_storage.playerName ?? "Club"),
+        title: const Text("Club"),
         actions: [
-          IconButton(icon: const Icon(Icons.person_add), onPressed: _registerPlayer, tooltip: "Register player"),
+          IconButton(icon: const Icon(Icons.person_add), onPressed: _registerPlayer),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
       ),
@@ -95,6 +115,10 @@ class _ClubScreenState extends State<ClubScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 18),
+                                onPressed: () => _deletePlayer(p),
+                              ),
+                              IconButton(
                                 icon: const Icon(Icons.edit, size: 18),
                                 onPressed: () => _editPlayer(p),
                               ),
@@ -105,7 +129,7 @@ class _ClubScreenState extends State<ClubScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ClubPlayerScreen(playerName: p.name),
+                                builder: (_) => PlayerProfileScreen(playerName: p.name),
                               ),
                             ).then((_) => setState(() {}));
                           },

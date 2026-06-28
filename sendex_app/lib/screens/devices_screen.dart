@@ -22,6 +22,9 @@ class _DevicesScreenState extends State<DevicesScreen> {
   List<ScanResult> _scanResults = [];
   bool _scanning = false;
 
+  int get _maxDevices => _storage.role == 'club' ? 11 : 1;
+  bool get _canAdd => _devices.length < _maxDevices;
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +50,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   void _addDevice(ScanResult result) {
+    if (!_canAdd) {
+      _showLimitMessage();
+      return;
+    }
     final device = DeviceInfo(
       id: result.device.remoteId.toString(),
       name: result.device.platformName.isNotEmpty ? result.device.platformName : "Unknown",
@@ -60,6 +67,19 @@ class _DevicesScreenState extends State<DevicesScreen> {
     });
   }
 
+  void _showLimitMessage() {
+    final role = _storage.role == 'club' ? "club" : "player";
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          role == "club"
+              ? "Club limit reached (max $_maxDevices vests)"
+              : "Player limit reached (max $_maxDevices vest). Use a club account for more.",
+        ),
+      ),
+    );
+  }
+
   void _navigateToDevice(DeviceInfo device) {
     Navigator.push(
       context,
@@ -67,7 +87,36 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
+  void _removeDevice(DeviceInfo device) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Remove Vest"),
+        content: Text("Remove ${device.name} and all its sessions?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              _storage.removeDevice(device.id);
+              setState(() => _devices = _storage.getDevices());
+              Navigator.pop(ctx);
+            },
+            child: Text("Remove",
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addSimulatedDevice() async {
+    if (!_canAdd) {
+      _showLimitMessage();
+      return;
+    }
     final result = await showDialog<(String, String, int)>(
       context: context,
       builder: (_) => const DeviceEditDialog(),
@@ -86,8 +135,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   void _logout() {
-    _storage.isLoggedIn = false;
-    _storage.playerName = null;
+    _storage.logout();
     Navigator.pushReplacementNamed(context, '/login');
   }
 
@@ -110,10 +158,54 @@ class _DevicesScreenState extends State<DevicesScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Subscription banner
+          if (_storage.getSubscription().isActive && !_storage.getSubscription().isExpired)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              color: _storage.getSubscription().isTrial ? Colors.blue[900] : Colors.green[900],
+              child: Row(
+                children: [
+                  Icon(Icons.card_giftcard, size: 16, color: _storage.getSubscription().isTrial ? Colors.blue[200] : Colors.green[200]),
+                  const SizedBox(width: 8),
+                  Text(
+                    _storage.getSubscription().isTrial
+                        ? "Trial · ${_storage.getSubscription().daysRemaining} days left"
+                        : "Subscribed",
+                    style: TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/subscription'),
+                    child: const Text("Manage", style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text("Welcome, $playerName",
-                style: Theme.of(context).textTheme.titleLarge),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Row(
+              children: [
+                Text("Welcome, $playerName",
+                    style: Theme.of(context).textTheme.titleLarge),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _canAdd ? Colors.green.withAlpha(30) : Colors.orange.withAlpha(30),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "${_devices.length}/$_maxDevices",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _canAdd ? Colors.green[300] : Colors.orange[300],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -121,7 +213,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: _scanning ? null : _scan,
+                    onPressed: (_canAdd && !_scanning) ? _scan : null,
                     icon: Icon(_scanning ? Icons.bluetooth_searching : Icons.bluetooth),
                     label: Text(_scanning ? "Scanning..." : "Scan for Vest"),
                   ),
@@ -129,7 +221,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _addSimulatedDevice,
+                    onPressed: _canAdd ? _addSimulatedDevice : null,
                     icon: const Icon(Icons.phone_android),
                     label: const Text("Simulate"),
                   ),
@@ -166,6 +258,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           const SizedBox(height: 8),
                           if (alreadyAdded)
                             const Text("Added", style: TextStyle(color: Colors.green))
+                          else if (!_canAdd)
+                            Text("Limit reached", style: TextStyle(fontSize: 12, color: Colors.grey[500]))
                           else
                             FilledButton.tonalIcon(
                               onPressed: () => _addDevice(r),
@@ -209,7 +303,16 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           ),
                           title: Text(d.name),
                           subtitle: Text(d.address, style: const TextStyle(fontSize: 12)),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.delete_outline, size: 18, color: Colors.red[300]),
+                                onPressed: () => _removeDevice(d),
+                              ),
+                              const Icon(Icons.chevron_right),
+                            ],
+                          ),
                           onTap: () => _navigateToDevice(d),
                         ),
                       );

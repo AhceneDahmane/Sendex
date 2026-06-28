@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/storage_service.dart';
-import 'devices_screen.dart';
-import 'club_screen.dart';
+import 'main_shell.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,79 +10,175 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _controller = TextEditingController();
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   final _storage = StorageService.instance;
-  bool _isClub = false;
+  bool _obscure = true;
+  bool _loading = false;
+  late AnimationController _animCtrl;
+  late Animation<double> _fade;
 
-  void _login() {
-    final name = _controller.text.trim();
-    if (name.isEmpty) return;
-    _storage.playerName = name;
-    _storage.isLoggedIn = true;
-    _storage.role = _isClub ? 'club' : 'player';
-
-    if (!_isClub) {
-      _storage.addPlayer(name);
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _isClub ? const ClubScreen() : const DevicesScreen(),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _fade = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
+    _animCtrl.forward();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _animCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _login() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    if (email.isEmpty || password.isEmpty) return;
+
+    setState(() => _loading = true);
+
+    final ok = await _storage.login(email, password);
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (ok) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainShell(role: _storage.role),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invalid email or password")),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.sports_soccer, size: 80, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 16),
-              Text("Sendex", style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text("Athlete Performance Tracker",
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey)),
-              const SizedBox(height: 32),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: false, label: Text("Player"), icon: Icon(Icons.person)),
-                  ButtonSegment(value: true, label: Text("Club"), icon: Icon(Icons.groups)),
-                ],
-                selected: {_isClub},
-                onSelectionChanged: (v) => setState(() => _isClub = v.first),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  labelText: _isClub ? "Club Name" : "Player Name",
-                  prefixIcon: Icon(_isClub ? Icons.groups : Icons.person),
-                  border: const OutlineInputBorder(),
+      body: FadeTransition(
+        opacity: _fade,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [cs.primary, cs.tertiary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(color: cs.primary.withAlpha(80), blurRadius: 24, spreadRadius: 2),
+                    ],
+                  ),
+                  child: const Icon(Icons.sports_soccer, size: 44, color: Colors.white),
                 ),
-                textCapitalization: TextCapitalization.words,
-                onSubmitted: (_) => _login(),
-              ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _login,
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(_isClub ? "Enter Club" : "Get Started"),
-                style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-              ),
-            ],
+                const SizedBox(height: 20),
+                Text("Sendex",
+                    style: theme.textTheme.headlineLarge
+                        ?.copyWith(fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                const SizedBox(height: 6),
+                Text("Sign in to your account",
+                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[400])),
+                const SizedBox(height: 36),
+
+                // Email
+                TextField(
+                  controller: _emailCtrl,
+                  decoration: InputDecoration(
+                    labelText: "Email",
+                    prefixIcon: const Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    filled: true,
+                    fillColor: Colors.grey[900],
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 16),
+
+                // Password
+                TextField(
+                  controller: _passwordCtrl,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText: "Password",
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    filled: true,
+                    fillColor: Colors.grey[900],
+                  ),
+                  textInputAction: TextInputAction.go,
+                  onSubmitted: (_) => _login(),
+                ),
+                const SizedBox(height: 24),
+
+                // Login button
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(colors: [cs.primary, cs.tertiary]),
+                      boxShadow: [
+                        BoxShadow(color: cs.primary.withAlpha(60), blurRadius: 12, offset: const Offset(0, 4)),
+                      ],
+                    ),
+                    child: FilledButton.icon(
+                      onPressed: _loading ? null : _login,
+                      icon: _loading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.arrow_forward),
+                      label: Text(_loading ? "Signing in..." : "Sign In"),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Register link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("Don't have an account? ", style: TextStyle(color: Colors.grey[400])),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      ),
+                      child: const Text("Create one"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

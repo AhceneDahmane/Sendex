@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sendex — Firmware Update</title>
+  <meta name="theme-color" content="#0d1117">
+  <script type="module" src="https://cdn.jsdelivr.net/npm/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 40px 24px; }
+    .container { max-width: 560px; width: 100%; }
+    .logo { font-size: 24px; font-weight: 800; color: #58a6ff; text-decoration: none; display: block; margin-bottom: 40px; }
+    h1 { font-size: 28px; font-weight: 700; color: #f0f6fc; margin-bottom: 8px; }
+    .subtitle { color: #8b949e; font-size: 15px; margin-bottom: 32px; }
+    .card { background: #161b22; border: 1px solid #21262d; border-radius: 16px; padding: 32px; margin-bottom: 20px; }
+    .card h2 { font-size: 16px; color: #f0f6fc; margin-bottom: 16px; }
+    .step { display: flex; gap: 12px; margin-bottom: 16px; align-items: flex-start; }
+    .step-num { width: 24px; height: 24px; border-radius: 50%; background: #58a6ff20; color: #58a6ff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+    .step p { font-size: 13px; color: #c9d1d9; }
+    .step p small { display: block; color: #8b949e; font-size: 12px; margin-top: 4px; }
+    .version-badge { display: inline-block; background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 4px 12px; font-size: 12px; color: #8b949e; }
+    .current-version { margin-bottom: 16px; }
+    .current-version strong { color: #f0f6fc; }
+    .btn-download { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; cursor: pointer; border: none; background: #238636; color: #fff; font-family: inherit; margin-top: 12px; }
+    .btn-download:hover { background: #2ea043; }
+    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #484f58; }
+    .footer a { color: #58a6ff; text-decoration: none; }
+    esp-web-install-button { margin-top: 12px; }
+    .flash-note { font-size: 12px; color: #8b949e; margin-top: 12px; background: #0d1117; border-radius: 8px; padding: 12px; }
+    .flash-note code { background: #1c2128; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="logo">SENDEX</a>
+    <h1>Firmware Update</h1>
+    <p class="subtitle">Update your Sendex vest to the latest firmware via USB.</p>
+
+    <div class="card">
+      <h2>Current version</h2>
+      <div class="current-version">
+        Firmware <strong>v1.2.3</strong> <span class="version-badge">latest</span>
+      </div>
+      <p style="font-size:13px;color:#8b949e;margin-bottom:16px">
+        Latest improvements: GPS stability, BLE reconnection, battery reporting.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>How to update</h2>
+      <div class="step">
+        <div class="step-num">1</div>
+        <p>Connect the Sendex vest to your computer via USB cable.<small>Use a data-capable USB cable (not just charging).</small></p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p>Put the vest in update mode.<small>Hold the button for 5 seconds until the LED blinks rapidly, or press the reset button twice.</small></p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p>Click the button below, select "ESP32" or "USB Serial" when prompted, and wait.</p>
+      </div>
+
+      <esp-web-install-button manifest="firmware-manifest.json">
+        <button slot="activate" class="btn-download">
+          ⚡ Install Update
+        </button>
+        <span slot="unsupported">Web Serial not supported. Use Chrome or Edge on desktop.</span>
+        <span slot="not-allowed">Please connect the vest via USB first.</span>
+      </esp-web-install-button>
+
+      <div class="flash-note">
+        ⏱ Takes about 30 seconds. Do not unplug the USB cable during flashing.<br>
+        <code>USB Serial</code> or <code>CP2102</code> should appear in the browser prompt.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Manual update (alternative)</h2>
+      <p style="font-size:13px;color:#8b949e;margin-bottom:12px">If the web installer doesn't work, you can flash using Python:</p>
+      <div class="step">
+        <div class="step-num">1</div>
+        <p>Install esptool: <code>pip install esptool</code></p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p>Download the firmware: <a href="sendex-firmware-v1.2.3.bin" style="color:#58a6ff">sendex-firmware-v1.2.3.bin</a></p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p>Run: <code style="font-size:12px">esptool.py --chip esp32 --port COM3 write_flash 0x0 sendex-firmware-v1.2.3.bin</code></p>
+      </div>
+    </div>
+
+    <div class="footer">
+      &copy; 2026 Sendex &middot; <a href="/">Home</a> &middot; <a href="/app/">Open App</a>
+    </div>
+  </div>
+</body>
+</html>

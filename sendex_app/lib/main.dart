@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'services/storage_service.dart';
-import 'screens/login_screen.dart';
-import 'screens/devices_screen.dart';
-import 'screens/club_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/main_shell.dart';
+import 'screens/landing_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,9 +16,15 @@ class SendexApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = StorageService.instance;
-    final home = s.isLoggedIn
-        ? (s.role == 'club' ? const ClubScreen() : const DevicesScreen())
-        : const LoginScreen();
+
+    Widget home;
+    if (!s.onboardingDone) {
+      home = const OnboardingScreen();
+    } else if (s.isLoggedIn) {
+      home = MainShell(role: s.role ?? 'player');
+    } else {
+      home = const LandingScreen();
+    }
 
     return MaterialApp(
       title: 'Sendex',
@@ -31,9 +37,7 @@ class SendexApp extends StatelessWidget {
       ),
       home: home,
       routes: {
-        '/login': (_) => const LoginScreen(),
-        '/devices': (_) => const DevicesScreen(),
-        '/club': (_) => const ClubScreen(),
+        '/login': (_) => const LandingScreen(),
       },
     );
   }

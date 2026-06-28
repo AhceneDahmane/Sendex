@@ -5,14 +5,19 @@ class PlayerInfo {
   final String club;
   final String sport;
   final String position;
+  final double fieldLength;
+  final double fieldWidth;
 
   PlayerInfo({
     required this.name,
     this.club = '',
     this.sport = 'Football',
     this.position = '',
-  });
+    double? fieldLength,
+    double? fieldWidth,
+  })  : fieldLength = fieldLength ?? defaultLength(sport),
 
+        fieldWidth = fieldWidth ?? defaultWidth(sport);
   static const List<String> sports = [
     'Football',
     'Basketball',
@@ -34,11 +39,37 @@ class PlayerInfo {
     return positionsBySport[sport] ?? [];
   }
 
+  static double defaultLength(String sport) {
+    switch (sport) {
+      case 'Football': return 105;
+      case 'Basketball': return 28;
+      case 'Rugby': return 100;
+      case 'Handball': return 40;
+      case 'Tennis': return 23.77;
+      case 'Athletics': return 100;
+      default: return 100;
+    }
+  }
+
+  static double defaultWidth(String sport) {
+    switch (sport) {
+      case 'Football': return 68;
+      case 'Basketball': return 15;
+      case 'Rugby': return 70;
+      case 'Handball': return 20;
+      case 'Tennis': return 10.97;
+      case 'Athletics': return 100;
+      default: return 50;
+    }
+  }
+
   Map<String, dynamic> toJson() => {
         'name': name,
         'club': club,
         'sport': sport,
         'position': position,
+        'fieldLength': fieldLength,
+        'fieldWidth': fieldWidth,
       };
 
   factory PlayerInfo.fromJson(Map<String, dynamic> json) => PlayerInfo(
@@ -46,6 +77,8 @@ class PlayerInfo {
         club: json['club'] as String? ?? '',
         sport: json['sport'] as String? ?? 'Football',
         position: json['position'] as String? ?? '',
+        fieldLength: (json['fieldLength'] as num?)?.toDouble(),
+        fieldWidth: (json['fieldWidth'] as num?)?.toDouble(),
       );
 
   String get displayInfo {

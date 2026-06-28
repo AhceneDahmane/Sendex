@@ -25,10 +25,14 @@ class _SessionScreenState extends State<SessionScreen> {
   Timer? _timer;
   List<GpsPoint> _points = [];
   double _currentSpeed = 0;
+  double _prevSpeed = 0;
 
-  // Base position (centered on a football pitch)
   double _baseLat = 48.8566;
   double _baseLng = 2.3522;
+
+  String get _sport => _storage.getPlayerInfo(_storage.playerName ?? '')?.sport ?? 'Football';
+  double get _fieldLength => _storage.getPlayerInfo(_storage.playerName ?? '')?.fieldLength ?? 105;
+  double get _fieldWidth => _storage.getPlayerInfo(_storage.playerName ?? '')?.fieldWidth ?? 68;
 
   @override
   void dispose() {
@@ -48,6 +52,7 @@ class _SessionScreenState extends State<SessionScreen> {
     _active = true;
     _startTime = DateTime.now();
     _points = [];
+    _prevSpeed = 0;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _simulatePoint());
   }
 
@@ -69,18 +74,21 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   void _simulatePoint() {
-    final speed = _rng.nextDouble() * 25;
+    final raw = _rng.nextDouble() * 28;
+    final speed = double.parse(raw.toStringAsFixed(1));
     _currentSpeed = speed;
+    final accel = _prevSpeed == 0 ? 0.0 : double.parse((speed - _prevSpeed).toStringAsFixed(1));
+    _prevSpeed = speed;
 
-    // Wander within pitch bounds
     _baseLat += (_rng.nextDouble() - 0.5) / 5000;
     _baseLng += (_rng.nextDouble() - 0.5) / 5000;
 
     final point = GpsPoint(
       lat: _baseLat,
       lng: _baseLng,
-      speed: double.parse(speed.toStringAsFixed(1)),
+      speed: speed,
       heartRate: (80 + _rng.nextInt(60)).toDouble(),
+      acceleration: accel,
     );
 
     setState(() => _points.add(point));
@@ -102,6 +110,8 @@ class _SessionScreenState extends State<SessionScreen> {
     final maxSpeed = _points.isEmpty
         ? 0.0
         : _points.map((p) => p.speed).reduce((a, b) => a > b ? a : b);
+    final accelerations = _points.where((p) => p.acceleration > 3).length;
+    final decelerations = _points.where((p) => p.acceleration < -3).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -116,52 +126,41 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
       body: Column(
         children: [
-          // Stats bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _StatItem(label: "Time", value: dup, icon: Icons.timer),
-                _StatItem(
-                    label: "Speed",
-                    value: "${_currentSpeed.toStringAsFixed(1)} km/h",
-                    icon: Icons.speed),
+                _StatItem(label: "Speed", value: "${_currentSpeed.toStringAsFixed(1)} km/h", icon: Icons.speed),
                 _StatItem(label: "Sprints", value: "$sprints", icon: Icons.flash_on),
-                _StatItem(
-                    label: "Max",
-                    value: "${maxSpeed.toStringAsFixed(1)} km/h",
-                    icon: Icons.trending_up),
+                _StatItem(label: "Max", value: "${maxSpeed.toStringAsFixed(1)}", icon: Icons.trending_up),
+                _StatItem(label: "Accel", value: "$accelerations", icon: Icons.arrow_upward),
+                _StatItem(label: "Decel", value: "$decelerations", icon: Icons.arrow_downward),
               ],
             ),
           ),
-
-          // Pitch heatmap
           Expanded(
             flex: 3,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: PitchHeatmap(points: _points),
+                child: PitchHeatmap(points: _points, sport: _sport, fieldLength: _fieldLength, fieldWidth: _fieldWidth),
               ),
             ),
           ),
-
-          // Speed chart
           Expanded(
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SpeedChart(points: _points.length > 50 ? _points.sublist(_points.length - 50) : _points),
+                child: SpeedChart(points: _points.length > 60 ? _points.sublist(_points.length - 60) : _points),
               ),
             ),
           ),
-
-          // Controls
           Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton.icon(
@@ -192,10 +191,10 @@ class _StatItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: Colors.grey[400]),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+        Icon(icon, size: 16, color: Colors.grey[400]),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
       ],
     );
   }
