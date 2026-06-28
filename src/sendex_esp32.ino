@@ -1,11 +1,12 @@
 /*
-  Sendex — ESP32 GPS + Heart Rate + BLE Firmware
+  Sendex — ESP32 GPS + HR + Accelerometer + BLE Firmware
   Hardware:
     - GPS: NEO-6M (SoftwareSerial RX=16, TX=17)
-    - Heart Rate: MAX30102 (I2C SDA=21, SCL=22)
-    - Button: GPIO 7 (INPUT_PULLUP, hold 3s to toggle)
+    - HR: MAX30102 (I2C 0x57, SDA=21, SCL=22)
+    - Accel: MPU6050 (I2C 0x68, same bus)
+    - Button: GPIO 7 (INPUT_PULLUP, hold 3s toggle session)
     - LEDs: Green=8, Blue=9
-    - Battery ADC: GPIO 35 (voltage divider)
+    - Battery ADC: GPIO 35 (voltage divider 2:1)
 */
 
 #include <BLEDevice.h>
@@ -28,7 +29,7 @@
 #define I2C_SCL     22
 
 // ── Firmware info ──────────────────────────────────────
-#define FIRMWARE_VERSION "v1.2.3"
+#define FIRMWARE_VERSION "v1.3.0"
 #define DEVICE_NAME "Sendex-Vest"
 
 // ── BLE UUIDs ──────────────────────────────────────────
@@ -39,24 +40,26 @@
 #define BATTERY_CHAR_UUID     "2A19"
 
 // ── Constants ──────────────────────────────────────────
-#define NOTIFY_INTERVAL      1000  // 1s GPS data
-#define BATT_NOTIFY_INTERVAL 60000 // 60s battery
-#define HOLD_DURATION        3000  // 3s to toggle session
+#define NOTIFY_INTERVAL      1000
+#define BATT_NOTIFY_INTERVAL 60000
+#define HOLD_DURATION        3000
 #define DEBOUNCE_DELAY       50
-#define MAX_POINTS_CACHE     3600  // 1h at 1Hz
+#define MAX_POINTS_CACHE     3600
 #define JSON_BUF_SIZE        512
+#define DEEP_SLEEP_TIMEOUT   60000
+#define PPG_RING_SIZE        64
 
 // ── GPS ────────────────────────────────────────────────
 TinyGPSPlus gps;
 SoftwareSerial gpsSerial(GPS_RX_PIN, GPS_TX_PIN);
 
-// ── BLE objects ────────────────────────────────────────
+// ── BLE ────────────────────────────────────────────────
 BLECharacteristic *pDataChar = nullptr;
 BLECharacteristic *pCmdChar = nullptr;
 BLECharacteristic *pBattChar = nullptr;
 bool deviceConnected = false;
 
-// ── NVS (data cache when BLE disconnected) ─────────────
+// ── NVS cache ──────────────────────────────────────────
 Preferences prefs;
 int cacheIndex = 0;
 
@@ -67,8 +70,9 @@ unsigned long lastBattNotify = 0;
 unsigned long sessionStartMs = 0;
 unsigned long lastGpsFixMs = 0;
 unsigned long lastBtnPressMs = 0;
+unsigned long sessionStopMs = 0;
 
-// ── MAX30102 registers ─────────────────────────────────
+// ── MAX30102 (0x57) ────────────────────────────────────
 #define MAX30102_ADDR 0x57
 #define REG_INTR_STATUS_1 0x00
 #define REG_FIFO_DATA     0x07
@@ -79,13 +83,27 @@ unsigned long lastBtnPressMs = 0;
 
 bool hrSensorPresent = false;
 
-// ── Battery ────────────────────────────────────────────
+// ── PPG ring buffer ────────────────────────────────────
+uint32_t ppgRing[PPG_RING_SIZE];
+int ppgIdx = 0;
+int ppgCount = 0;
+
+// ── MPU6050 (0x68) ─────────────────────────────────────
+#define MPU6050_ADDR   0x68
+#define REG_PWR_MGMT_1 0x6B
+#define REG_ACCEL_XOUT 0x3B
+
+bool mpuPresent = false;
+float accelX = 0, accelY = 0, accelZ = 0;
+
+// ═══════════════════════════════════════════════════════
+//  Battery
+// ═══════════════════════════════════════════════════════
 float readBatteryVoltage() {
   int raw = 0;
   for (int i = 0; i < 10; i++) raw += analogRead(BAT_ADC);
   raw /= 10;
-  float voltage = (raw / 4095.0) * 3.3 * 2;
-  return voltage;
+  return (raw / 4095.0) * 3.3 * 2;
 }
 
 uint8_t batteryPercent(float voltage) {
@@ -97,63 +115,103 @@ uint8_t batteryPercent(float voltage) {
   return 0;
 }
 
-// ── MAX30102 ───────────────────────────────────────────
-bool initMAX30102() {
-  Wire.beginTransmission(MAX30102_ADDR);
+// ═══════════════════════════════════════════════════════
+//  MPU6050
+// ═══════════════════════════════════════════════════════
+bool initMPU6050() {
+  Wire.beginTransmission(MPU6050_ADDR);
   if (Wire.endTransmission() != 0) return false;
-
-  // Reset
-  Wire.beginTransmission(MAX30102_ADDR);
-  Wire.write(REG_MODE_CONFIG);
-  Wire.write(0x40);
+  // Wake up (clear sleep bit)
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(REG_PWR_MGMT_1);
+  Wire.write(0x00);
   Wire.endTransmission();
-  delay(100);
-
-  // Multi-LED mode, SpO2
-  Wire.beginTransmission(MAX30102_ADDR);
-  Wire.write(REG_MODE_CONFIG);
-  Wire.write(0x03);
-  Wire.endTransmission();
-
-  // SpO2 config: 200Hz, 411us pulse, 18-bit
-  Wire.beginTransmission(MAX30102_ADDR);
-  Wire.write(REG_SPO2_CONFIG);
-  Wire.write(0x27);
-  Wire.endTransmission();
-
-  // LED currents: 25mA
-  Wire.beginTransmission(MAX30102_ADDR);
-  Wire.write(REG_LED1_PA);
-  Wire.write(0x24);
-  Wire.endTransmission();
-
-  Wire.beginTransmission(MAX30102_ADDR);
-  Wire.write(REG_LED2_PA);
-  Wire.write(0x24);
-  Wire.endTransmission();
-
+  delay(50);
   return true;
 }
 
-float readMAX30102HR() {
-  if (!hrSensorPresent) return readSimulatedHR();
+void readMPU6050() {
+  if (!mpuPresent) { accelX = 0; accelY = 0; accelZ = 0; return; }
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(REG_ACCEL_XOUT);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU6050_ADDR, 6);
+  if (Wire.available() < 6) return;
+  int16_t ax = Wire.read() << 8 | Wire.read();
+  int16_t ay = Wire.read() << 8 | Wire.read();
+  int16_t az = Wire.read() << 8 | Wire.read();
+  // Convert to G (±2g range, 16384 LSB/g)
+  accelX = ax / 16384.0;
+  accelY = ay / 16384.0;
+  accelZ = az / 16384.0;
+}
 
-  // Read FIFO
+float computeNetAccel() {
+  float mag = sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
+  return fabs(mag - 1.0);
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAX30102 — PPG with ring buffer + adaptive peak
+// ═══════════════════════════════════════════════════════
+bool initMAX30102() {
+  Wire.beginTransmission(MAX30102_ADDR);
+  if (Wire.endTransmission() != 0) return false;
+  // Reset
+  Wire.beginTransmission(MAX30102_ADDR);
+  Wire.write(REG_MODE_CONFIG); Wire.write(0x40);
+  Wire.endTransmission();
+  delay(100);
+  // Multi-LED mode
+  Wire.beginTransmission(MAX30102_ADDR);
+  Wire.write(REG_MODE_CONFIG); Wire.write(0x03);
+  Wire.endTransmission();
+  // SpO2: 200Hz, 411us, 18-bit
+  Wire.beginTransmission(MAX30102_ADDR);
+  Wire.write(REG_SPO2_CONFIG); Wire.write(0x27);
+  Wire.endTransmission();
+  // LEDs 25mA
+  Wire.beginTransmission(MAX30102_ADDR);
+  Wire.write(REG_LED1_PA); Wire.write(0x24);
+  Wire.endTransmission();
+  Wire.beginTransmission(MAX30102_ADDR);
+  Wire.write(REG_LED2_PA); Wire.write(0x24);
+  Wire.endTransmission();
+  return true;
+}
+
+bool readPPGSample(uint32_t &ir) {
   Wire.beginTransmission(MAX30102_ADDR);
   Wire.write(REG_FIFO_DATA);
   Wire.endTransmission();
   Wire.requestFrom(MAX30102_ADDR, 6);
-  if (Wire.available() < 6) return readSimulatedHR();
+  if (Wire.available() < 6) return false;
+  Wire.read(); Wire.read(); Wire.read(); // skip red
+  ir = (uint32_t)(Wire.read() << 16 | Wire.read() << 8 | Wire.read());
+  return true;
+}
 
-  uint32_t red = Wire.read() << 16 | Wire.read() << 8 | Wire.read();
-  uint32_t ir = Wire.read() << 16 | Wire.read() << 8 | Wire.read();
-
-  // Simple threshold-based peak detection
-  static uint32_t lastIr = 0;
+float ppgHeartRate() {
+  if (!hrSensorPresent) return readSimulatedHR();
+  uint32_t sample;
+  if (!readPPGSample(sample)) return readSimulatedHR();
+  // Ring buffer
+  ppgRing[ppgIdx] = sample;
+  ppgIdx = (ppgIdx + 1) % PPG_RING_SIZE;
+  if (ppgCount < PPG_RING_SIZE) ppgCount++;
+  if (ppgCount < 10) return readSimulatedHR(); // not enough samples
+  // DC removal (mean subtract)
+  uint64_t sum = 0;
+  for (int i = 0; i < ppgCount; i++) sum += ppgRing[i];
+  uint32_t mean = sum / ppgCount;
+  // Find peaks above adaptive threshold
+  static bool lastAbove = false;
   static unsigned long lastPeakMs = 0;
   static float hr = 72.0;
-
-  if (lastIr > 0 && ir > lastIr + 5000) {
+  int half = ppgCount / 2;
+  uint32_t thresh = mean + (ppgRing[half] > mean ? (ppgRing[half] - mean) / 3 : 500);
+  bool above = (sample > thresh);
+  if (above && !lastAbove) {
     unsigned long now = millis();
     if (lastPeakMs > 0) {
       float interval = (now - lastPeakMs) / 1000.0;
@@ -165,8 +223,7 @@ float readMAX30102HR() {
     }
     lastPeakMs = now;
   }
-  lastIr = ir;
-
+  lastAbove = above;
   return hr;
 }
 
@@ -178,7 +235,9 @@ float readSimulatedHR() {
   return hr;
 }
 
-// ── NVS cache (prevent data loss on BLE disconnect) ────
+// ═══════════════════════════════════════════════════════
+//  NVS cache
+// ═══════════════════════════════════════════════════════
 void cachePoint(const char* json) {
   if (cacheIndex >= MAX_POINTS_CACHE) return;
   String key = "p" + String(cacheIndex);
@@ -190,7 +249,6 @@ void cachePoint(const char* json) {
 void flushCache() {
   int count = prefs.getInt("count", 0);
   if (count == 0 || !deviceConnected) return;
-
   for (int i = 0; i < count; i++) {
     String key = "p" + String(i);
     String val = prefs.getString(key.c_str(), "");
@@ -206,54 +264,53 @@ void flushCache() {
   Serial.printf("Flushed %d cached points\n", count);
 }
 
-// ── Button handler (with debounce) ─────────────────────
+// ═══════════════════════════════════════════════════════
+//  Button (debounced, hold 3s)
+// ═══════════════════════════════════════════════════════
 void handleButton() {
   static int lastState = HIGH;
   static unsigned long lastStableMs = 0;
-  static bool boolHold = false;
-
-  int raw = digitalRead(BTN_PIN);
+  static bool holdActive = false;
   unsigned long now = millis();
-
-  // Debounce
+  int raw = digitalRead(BTN_PIN);
   if (raw != lastState) lastStableMs = now;
   lastState = raw;
-
   bool stable = (now - lastStableMs) >= DEBOUNCE_DELAY;
   bool pressed = stable && raw == LOW;
-
-  if (pressed && !boolHold && (now - lastBtnPressMs) >= HOLD_DURATION) {
+  if (pressed && !holdActive && (now - lastBtnPressMs) >= HOLD_DURATION) {
     lastBtnPressMs = now;
-    boolHold = true;
+    holdActive = true;
     sessionActive = !sessionActive;
     digitalWrite(LED_GREEN, sessionActive ? LOW : HIGH);
     digitalWrite(LED_BLUE, sessionActive ? HIGH : LOW);
-
     if (sessionActive) {
       sessionStartMs = now;
+      sessionStopMs = 0;
       Serial.println("Session STARTED (button)");
     } else {
+      sessionStopMs = now;
       Serial.println("Session STOPPED (button)");
     }
   }
-  if (!pressed) boolHold = false;
+  if (!pressed) holdActive = false;
 }
 
-// ── BLE command handler ────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  BLE commands
+// ═══════════════════════════════════════════════════════
 class CmdCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* c) {
     String cmd = c->getValue().c_str();
     cmd.toUpperCase();
     cmd.trim();
-    Serial.printf("BLE command: %s\n", cmd.c_str());
-
+    Serial.printf("BLE cmd: %s\n", cmd.c_str());
     if (cmd == "START") {
       if (!sessionActive) {
         sessionActive = true;
         sessionStartMs = millis();
+        sessionStopMs = 0;
         digitalWrite(LED_GREEN, LOW);
         digitalWrite(LED_BLUE, HIGH);
-        Serial.println("Session STARTED (BLE)");
         c->setValue("OK:START");
       } else {
         c->setValue("ERR:ALREADY_STARTED");
@@ -261,25 +318,32 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
     } else if (cmd == "STOP") {
       if (sessionActive) {
         sessionActive = false;
+        sessionStopMs = millis();
         digitalWrite(LED_GREEN, HIGH);
         digitalWrite(LED_BLUE, LOW);
-        Serial.println("Session STOPPED (BLE)");
         c->setValue("OK:STOP");
       } else {
         c->setValue("ERR:NOT_STARTED");
       }
     } else if (cmd == "STATUS") {
-      char resp[64];
+      char resp[128];
+      readMPU6050();
       snprintf(resp, sizeof(resp),
-        "{\"session\":%s,\"bat\":%d,\"hr\":%.0f,\"sat\":%d}",
+        "{\"session\":%s,\"bat\":%d,\"hr\":%.0f,\"sat\":%d,\"v\":\"%s\",\"accel\":%.2f}",
         sessionActive ? "true" : "false",
         batteryPercent(readBatteryVoltage()),
-        hrSensorPresent ? readMAX30102HR() : readSimulatedHR(),
-        gps.satellites.isValid() ? gps.satellites.value() : 0
+        hrSensorPresent ? ppgHeartRate() : readSimulatedHR(),
+        gps.satellites.isValid() ? gps.satellites.value() : 0,
+        FIRMWARE_VERSION,
+        computeNetAccel()
       );
       c->setValue(resp);
     } else if (cmd == "PING") {
-      c->setValue("PONG v" FIRMWARE_VERSION);
+      c->setValue("PONG " FIRMWARE_VERSION);
+    } else if (cmd == "SLEEP") {
+      c->setValue("OK:SLEEP");
+      delay(100);
+      enterDeepSleep();
     } else {
       c->setValue("ERR:UNKNOWN");
     }
@@ -287,7 +351,9 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
-// ── BLE server callbacks ───────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  BLE server callbacks
+// ═══════════════════════════════════════════════════════
 class ServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* s) {
     deviceConnected = true;
@@ -301,48 +367,83 @@ class ServerCallbacks : public BLEServerCallbacks {
   }
 };
 
-// ── Setup ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  Deep sleep
+// ═══════════════════════════════════════════════════════
+void enterDeepSleep() {
+  Serial.println("Entering deep sleep...");
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, LOW);
+  delay(100);
+  // Save session state to NVS
+  prefs.putBool("sessionActive", sessionActive);
+  prefs.putULong("sessionStart", sessionStartMs);
+  // Button GPIO 7 = RTC_GPIO_10, wake on LOW (pressed)
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_7, LOW);
+  esp_deep_sleep_start();
+}
+
+void checkDeepSleep() {
+  if (!sessionActive && !deviceConnected && sessionStopMs > 0 &&
+      (millis() - sessionStopMs) >= DEEP_SLEEP_TIMEOUT) {
+    enterDeepSleep();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  Setup
+// ═══════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
-  Serial.printf("\nSendex ESP32 %s starting...\n", FIRMWARE_VERSION);
+  Serial.printf("\nSendex ESP32 %s booting...\n", FIRMWARE_VERSION);
 
-  // Pins
   pinMode(BTN_PIN, INPUT_PULLUP);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   digitalWrite(LED_GREEN, HIGH);
   digitalWrite(LED_BLUE, LOW);
 
-  // I2C for MAX30102
   Wire.begin(I2C_SDA, I2C_SCL);
+
+  // MAX30102
   hrSensorPresent = initMAX30102();
-  Serial.printf("MAX30102: %s\n", hrSensorPresent ? "detected" : "not found (simulated)");
+  Serial.printf("MAX30102: %s\n", hrSensorPresent ? "OK" : "missing (simulated)");
+
+  // MPU6050
+  mpuPresent = initMPU6050();
+  Serial.printf("MPU6050:  %s\n", mpuPresent ? "OK" : "missing (no accel)");
 
   // GPS
   gpsSerial.begin(9600);
-  Serial.println("GPS serial started on pins 16/17");
+  Serial.println("GPS on pins 16/17");
 
-  // Battery
   analogReadResolution(12);
   float vbat = readBatteryVoltage();
   Serial.printf("Battery: %.2fV (%d%%)\n", vbat, batteryPercent(vbat));
 
-  // NVS cache
+  // NVS
   prefs.begin("sendex", false);
   cacheIndex = prefs.getInt("count", 0);
-  if (cacheIndex > 0) Serial.printf("NVS cache: %d points pending\n", cacheIndex);
+  if (cacheIndex > 0) Serial.printf("NVS: %d cached points\n", cacheIndex);
+
+  // Restore session from before deep sleep
+  bool wasActive = prefs.getBool("sessionActive", false);
+  if (wasActive) {
+    sessionActive = true;
+    sessionStartMs = millis() - (millis() - prefs.getULong("sessionStart", millis()));
+    digitalWrite(LED_GREEN, LOW);
+    digitalWrite(LED_BLUE, HIGH);
+    Serial.println("Session restored from NVS");
+  }
 
   // BLE
   BLEDevice::init(DEVICE_NAME);
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
 
-  // Data service (FFF0)
   BLEService *dataService = server->createService(SERVICE_UUID);
-
   pDataChar = dataService->createCharacteristic(
-    CHAR_DATA_UUID,
-    BLECharacteristic::PROPERTY_NOTIFY
+    CHAR_DATA_UUID, BLECharacteristic::PROPERTY_NOTIFY
   );
   pDataChar->addDescriptor(new BLE2902());
 
@@ -352,10 +453,8 @@ void setup() {
   );
   pCmdChar->addDescriptor(new BLE2902());
   pCmdChar->setCallbacks(new CmdCallbacks());
-
   dataService->start();
 
-  // Battery service (180F)
   BLEService *battService = server->createService(BATTERY_SERVICE_UUID);
   pBattChar = battService->createCharacteristic(
     BATTERY_CHAR_UUID,
@@ -365,7 +464,6 @@ void setup() {
   pBattChar->setValue((uint8_t)batteryPercent(vbat));
   battService->start();
 
-  // Advertising
   BLEAdvertising *adv = server->getAdvertising();
   adv->addServiceUUID(SERVICE_UUID);
   adv->setScanResponse(true);
@@ -373,44 +471,45 @@ void setup() {
   adv->setMaxPreferred(0x12);
   adv->start();
 
-  Serial.printf("BLE advertising as '%s'\n", DEVICE_NAME);
-  Serial.println("Hold button 3s or send BLE commands: START, STOP, STATUS, PING");
+  Serial.printf("Advertising as '%s'\n", DEVICE_NAME);
+  Serial.println("Commands: START, STOP, STATUS, PING, SLEEP");
 }
 
-// ── Loop ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  Loop
+// ═══════════════════════════════════════════════════════
 void loop() {
   handleButton();
 
-  // Read GPS
-  while (gpsSerial.available() > 0) {
-    gps.encode(gpsSerial.read());
-  }
+  while (gpsSerial.available() > 0) gps.encode(gpsSerial.read());
 
-  // LED feedback for GPS fix
-  if (gps.location.isValid() && gps.satellites.value() >= 3) {
-    lastGpsFixMs = millis();
-  }
+  // GPS fix LED
+  if (gps.location.isValid() && gps.satellites.value() >= 3) lastGpsFixMs = millis();
   bool hasFix = (millis() - lastGpsFixMs) < 10000;
-  if (hasFix && !sessionActive) {
-    digitalWrite(LED_GREEN, (millis() / 1000) % 2 == 0 ? LOW : HIGH);
-  }
-  if (!hasFix && !sessionActive) {
-    digitalWrite(LED_GREEN, (millis() / 500) % 2 == 0 ? LOW : HIGH);
+  if (!sessionActive) {
+    if (hasFix) digitalWrite(LED_GREEN, (millis() / 1000) % 2 == 0 ? LOW : HIGH);
+    else digitalWrite(LED_GREEN, (millis() / 500) % 2 == 0 ? LOW : HIGH);
   }
 
-  // Notify data every 1s if session active
+  // 1s data notify
   if (sessionActive && millis() - lastNotifyTime >= NOTIFY_INTERVAL) {
     lastNotifyTime = millis();
+    readMPU6050();
 
     float speed = gps.speed.isValid() ? gps.speed.kmph() : 0.0;
     double lat = gps.location.isValid() ? gps.location.lat() : 0.0;
     double lng = gps.location.isValid() ? gps.location.lng() : 0.0;
-    float altitude = gps.altitude.isValid() ? gps.altitude.meters() : 0.0;
-    int satellites = gps.satellites.isValid() ? gps.satellites.value() : 0;
+    float alt = gps.altitude.isValid() ? gps.altitude.meters() : 0.0;
+    int sat = gps.satellites.isValid() ? gps.satellites.value() : 0;
     float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-    float heartRate = hrSensorPresent ? readMAX30102HR() : readSimulatedHR();
-    float batteryVoltage = readBatteryVoltage();
-    uint8_t batteryPct = batteryPercent(batteryVoltage);
+    float hr = hrSensorPresent ? ppgHeartRate() : readSimulatedHR();
+    uint8_t bat = batteryPercent(readBatteryVoltage());
+    float netAccel = computeNetAccel();
+
+    // Sign from speed delta (positive = speeding up)
+    static float prevSpeed = 0;
+    float signedAccel = (speed >= prevSpeed) ? netAccel : -netAccel;
+    prevSpeed = speed;
 
     char json[JSON_BUF_SIZE];
     snprintf(json, sizeof(json),
@@ -423,10 +522,11 @@ void loop() {
       "\"hr\":%.0f,"
       "\"sat\":%d,"
       "\"hdop\":%.1f,"
-      "\"bat\":%d"
+      "\"bat\":%d,"
+      "\"accel\":%.2f"
       "}",
       FIRMWARE_VERSION,
-      lat, lng, speed, altitude, heartRate, satellites, hdop, batteryPct
+      lat, lng, speed, alt, hr, sat, hdop, bat, signedAccel
     );
 
     if (deviceConnected) {
@@ -438,7 +538,7 @@ void loop() {
     Serial.println(json);
   }
 
-  // Battery notification every 60s
+  // Battery notify every 60s
   if (deviceConnected && millis() - lastBattNotify >= BATT_NOTIFY_INTERVAL) {
     lastBattNotify = millis();
     uint8_t pct = batteryPercent(readBatteryVoltage());
@@ -446,14 +546,16 @@ void loop() {
     pBattChar->notify();
   }
 
-  // Watchdog: if GPS stuck > 30s and session active, reset
+  // Deep sleep check
+  checkDeepSleep();
+
+  // GPS watchdog
   if (sessionActive && millis() - lastGpsFixMs > 30000 && gps.location.isValid()) {
-    // GPS was valid but now stuck — soft reset GPS
     gpsSerial.end();
     delay(100);
     gpsSerial.begin(9600);
     gps = TinyGPSPlus();
     lastGpsFixMs = millis();
-    Serial.println("GPS watchdog: reset GPS");
+    Serial.println("GPS watchdog reset");
   }
 }

@@ -8,6 +8,8 @@ import '../services/ble_service.dart';
 import '../widgets/device_edit_dialog.dart';
 import 'device_detail_screen.dart';
 
+const _sendexFilter = "SENDEX-VEST";
+
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key});
 
@@ -25,13 +27,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
   int get _maxDevices => _storage.role == 'club' ? 11 : 1;
   bool get _canAdd => _devices.length < _maxDevices;
 
+  bool _isSendexDevice(ScanResult r) =>
+      r.device.platformName.toUpperCase().contains(_sendexFilter);
+
   @override
   void initState() {
     super.initState();
     _devices = _storage.getDevices();
     _ble.scanStream.listen((results) {
       if (!mounted) return;
-      setState(() => _scanResults = results);
+      setState(() {
+        _scanResults = results.where(_isSendexDevice).toList();
+      });
     });
   }
 
@@ -133,6 +140,26 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _storage.saveDevice(device);
     setState(() => _devices = _storage.getDevices());
   }
+
+  Widget _rssiBars(int rssi) {
+    final bars = rssi > -50 ? 4 : rssi > -65 ? 3 : rssi > -80 ? 2 : 1;
+    return Row(
+      children: List.generate(4, (i) {
+        final on = i < bars;
+        return Container(
+          width: 4,
+          height: 6 + i * 4,
+          margin: const EdgeInsets.only(right: 2),
+          decoration: BoxDecoration(
+            color: on ? Colors.green[400] : Colors.grey[700],
+            borderRadius: BorderRadius.circular(1),
+          ),
+        );
+      }),
+    );
+  }
+
+  bool _isSimulated(DeviceInfo d) => d.id.startsWith('sim-');
 
   void _logout() {
     _storage.logout();
@@ -249,15 +276,28 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(r.device.platformName.isNotEmpty ? r.device.platformName : "Unknown",
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(r.device.platformName.isNotEmpty ? r.device.platformName : "Sendex-Vest",
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                              ),
+                              Icon(Icons.bluetooth, size: 14, color: Colors.blue[300]),
+                            ],
+                          ),
                           const SizedBox(height: 4),
-                          Text(r.device.remoteId.toString(), style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                          Text(r.device.remoteId.toString(), style: TextStyle(fontSize: 10, color: Colors.grey[500])),
                           const Spacer(),
-                          Text("${r.rssi} dBm", style: TextStyle(color: Colors.grey[400])),
+                          Row(
+                            children: [
+                              _rssiBars(r.rssi),
+                              const SizedBox(width: 6),
+                              Text("${r.rssi} dBm", style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                            ],
+                          ),
                           const SizedBox(height: 8),
                           if (alreadyAdded)
-                            const Text("Added", style: TextStyle(color: Colors.green))
+                            const Text("Added", style: TextStyle(color: Colors.green, fontSize: 12))
                           else if (!_canAdd)
                             Text("Limit reached", style: TextStyle(fontSize: 12, color: Colors.grey[500]))
                           else
@@ -299,9 +339,18 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: Color(d.colorValue),
-                            child: const Icon(Icons.sensors, color: Colors.white),
+                            child: Icon(
+                              _isSimulated(d) ? Icons.phone_android : Icons.bluetooth,
+                              color: Colors.white, size: 20,
+                            ),
                           ),
-                          title: Text(d.name),
+                          title: Row(
+                            children: [
+                              Expanded(child: Text(d.name)),
+                              if (_isSimulated(d))
+                                Text("SIM", style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                            ],
+                          ),
                           subtitle: Text(d.address, style: const TextStyle(fontSize: 12)),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,

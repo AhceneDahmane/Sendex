@@ -5,12 +5,15 @@ import '../models/device_info.dart';
 import '../models/gps_point.dart';
 import '../models/session_data.dart';
 import '../services/storage_service.dart';
+import '../services/ble_service.dart';
 import '../widgets/pitch_heatmap.dart';
 import '../widgets/speed_chart.dart';
 
 class SessionScreen extends StatefulWidget {
   final DeviceInfo device;
-  const SessionScreen({super.key, required this.device});
+  final BleService? bleService;
+
+  const SessionScreen({super.key, required this.device, this.bleService});
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
@@ -26,17 +29,29 @@ class _SessionScreenState extends State<SessionScreen> {
   List<GpsPoint> _points = [];
   double _currentSpeed = 0;
   double _prevSpeed = 0;
+  StreamSubscription<FirmwarePoint>? _bleSub;
 
   double _baseLat = 48.8566;
   double _baseLng = 2.3522;
+
+  bool get _useBle => widget.bleService != null && widget.bleService!.isConnected;
 
   String get _sport => _storage.getPlayerInfo(_storage.playerName ?? '')?.sport ?? 'Football';
   double get _fieldLength => _storage.getPlayerInfo(_storage.playerName ?? '')?.fieldLength ?? 105;
   double get _fieldWidth => _storage.getPlayerInfo(_storage.playerName ?? '')?.fieldWidth ?? 68;
 
   @override
+  void initState() {
+    super.initState();
+    if (_useBle && widget.bleService!.sessionActive.value) {
+      _startSession();
+    }
+  }
+
+  @override
   void dispose() {
     _timer?.cancel();
+    _bleSub?.cancel();
     super.dispose();
   }
 
@@ -53,13 +68,25 @@ class _SessionScreenState extends State<SessionScreen> {
     _startTime = DateTime.now();
     _points = [];
     _prevSpeed = 0;
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _simulatePoint());
+
+    if (_useBle) {
+      widget.bleService!.writeCommand("START");
+      _bleSub?.cancel();
+      _bleSub = widget.bleService!.dataStream.listen(_onBlePoint);
+    } else {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) => _simulatePoint());
+    }
   }
 
   void _stopSession() {
     _active = false;
     _timer?.cancel();
-    _timer = null;
+    _bleSub?.cancel();
+    _bleSub = null;
+
+    if (_useBle) {
+      widget.bleService!.writeCommand("STOP");
+    }
 
     final session = SessionData(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -71,6 +98,27 @@ class _SessionScreenState extends State<SessionScreen> {
     );
 
     Navigator.pop(context, session);
+  }
+
+  void _onBlePoint(FirmwarePoint fp) {
+    if (!_active) return;
+    final speed = fp.speed;
+    _currentSpeed = speed;
+    final accel = _prevSpeed == 0 ? 0.0 : speed - _prevSpeed;
+    _prevSpeed = speed;
+
+    final point = GpsPoint(
+      lat: fp.lat,
+      lng: fp.lng,
+      speed: speed,
+      heartRate: fp.heartRate,
+      acceleration: fp.accel,
+    );
+
+    _baseLat = fp.lat;
+    _baseLng = fp.lng;
+
+    setState(() => _points.add(point));
   }
 
   void _simulatePoint() {
@@ -115,7 +163,16 @@ class _SessionScreenState extends State<SessionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.device.name),
+        title: Row(
+          children: [
+            Text(widget.device.name),
+            if (_useBle)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Icon(Icons.bluetooth_connected, size: 16, color: Colors.blue[300]),
+              ),
+          ],
+        ),
         actions: [
           if (!_active)
             IconButton(
@@ -183,7 +240,6 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-
   const _StatItem({required this.label, required this.value, required this.icon});
 
   @override

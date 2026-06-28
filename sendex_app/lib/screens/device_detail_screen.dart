@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../models/device_info.dart';
 import '../models/session_data.dart';
 import '../services/storage_service.dart';
+import '../services/ble_service.dart';
 import '../widgets/device_edit_dialog.dart';
 import 'session_screen.dart';
 import 'session_review_screen.dart';
@@ -16,22 +19,91 @@ class DeviceDetailScreen extends StatefulWidget {
 
 class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   final _storage = StorageService.instance;
+  final _ble = BleService();
   late DeviceInfo _device;
   List<SessionData> _sessions = [];
+  StreamSubscription<FirmwarePoint>? _dataSub;
+  int _liveBattery = 0;
+
+  bool get _isRealBleDevice =>
+      !_device.id.startsWith('sim-') && _device.address.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _device = widget.device;
     _sessions = _storage.getSessions(_device.id);
+    _ble.connectionState.addListener(_onConnChange);
+    _ble.batteryLevel.addListener(_onBattChange);
+  }
+
+  @override
+  void dispose() {
+    _dataSub?.cancel();
+    _ble.connectionState.removeListener(_onConnChange);
+    _ble.batteryLevel.removeListener(_onBattChange);
+    _ble.dispose();
+    super.dispose();
+  }
+
+  void _onConnChange() {
+    if (!mounted) return;
+    setState(() {});
+    if (_ble.connectionState.value == BleConnectionState.disconnected &&
+        _liveBattery > 0) {
+      _device = _device.copyWith(batteryLevel: _liveBattery);
+      _storage.saveDevice(_device);
+    }
+  }
+
+  void _onBattChange() {
+    if (!mounted) return;
+    setState(() => _liveBattery = _ble.batteryLevel.value);
+  }
+
+  Future<void> _connect() async {
+    if (_ble.connectionState.value == BleConnectionState.connected) {
+      await _ble.disconnect();
+      return;
+    }
+
+    try {
+      final remoteId = DeviceIdentifier(_device.address);
+      final d = BluetoothDevice(remoteId: remoteId);
+      await _ble.connect(d);
+      _dataSub = _ble.dataStream.listen((p) {
+        if (_liveBattery != p.battery && p.battery > 0) {
+          setState(() => _liveBattery = p.battery);
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Connection failed: $e")),
+        );
+      }
+    }
   }
 
   void _startSession() async {
+    if (_ble.connectionState.value == BleConnectionState.connected) {
+      await _ble.writeCommand("START");
+    }
     final session = await Navigator.push<SessionData>(
       context,
-      MaterialPageRoute(builder: (_) => SessionScreen(device: _device)),
+      MaterialPageRoute(
+        builder: (_) => SessionScreen(
+          device: _device,
+          bleService: _ble.connectionState.value == BleConnectionState.connected
+              ? _ble
+              : null,
+        ),
+      ),
     );
     if (session != null) {
+      if (_ble.connectionState.value == BleConnectionState.connected) {
+        await _ble.writeCommand("STOP");
+      }
       await _storage.saveSession(_device.id, session);
       setState(() => _sessions = _storage.getSessions(_device.id));
     }
@@ -52,14 +124,36 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     setState(() => _device = updated);
   }
 
+  String _connLabel() {
+    switch (_ble.connectionState.value) {
+      case BleConnectionState.connected:
+        return "Connected";
+      case BleConnectionState.connecting:
+        return "Connecting...";
+      case BleConnectionState.disconnected:
+        return "Disconnected";
+    }
+  }
+
+  Color _connColor() {
+    switch (_ble.connectionState.value) {
+      case BleConnectionState.connected:
+        return Colors.green;
+      case BleConnectionState.connecting:
+        return Colors.orange;
+      case BleConnectionState.disconnected:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final battColor = _device.batteryLevel > 60
+    final batt = _liveBattery > 0 ? _liveBattery : _device.batteryLevel;
+    final battColor = batt > 60
         ? Colors.green
-        : _device.batteryLevel > 20
-            ? Colors.orange
-            : Colors.red;
+        : batt > 20 ? Colors.orange : Colors.red;
+    final ver = _ble.firmwareVersion.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -75,6 +169,10 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
             ),
             const SizedBox(width: 8),
             Text(_device.name),
+            if (ver.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(ver, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            ],
           ],
         ),
         actions: [
@@ -84,7 +182,6 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          // ── Device info card ──
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -131,26 +228,34 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                           ],
                         ),
                       ),
-                      Column(
-                        children: [
-                          Icon(Icons.bluetooth_connected, size: 20, color: cs.primary),
-                          const SizedBox(height: 4),
-                          Text("Paired",
-                              style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-                        ],
-                      ),
+                      if (_isRealBleDevice)
+                        OutlinedButton(
+                          onPressed: _ble.connectionState.value == BleConnectionState.connecting ? null : _connect,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: _connColor()),
+                            foregroundColor: _connColor(),
+                          ),
+                          child: Text(_connLabel(), style: const TextStyle(fontSize: 11)),
+                        )
+                      else
+                        Column(
+                          children: [
+                            Icon(Icons.phone_android, size: 20, color: cs.primary),
+                            const SizedBox(height: 4),
+                            Text("Simulated",
+                                style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                          ],
+                        ),
                     ],
                   ),
                   const Divider(height: 28),
-
-                  // Stats grid
                   Row(
                     children: [
                       _StatBox(
                         icon: Icons.battery_std,
                         iconColor: battColor,
                         label: "Battery",
-                        value: "${_device.batteryLevel}%",
+                        value: "$batt%",
                       ),
                       const SizedBox(width: 12),
                       _StatBox(
@@ -176,8 +281,6 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // ── Start session button ──
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -196,20 +299,19 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
               child: FilledButton.icon(
                 onPressed: _startSession,
                 icon: const Icon(Icons.play_arrow),
-                label: const Text("Start Session",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                label: Text(
+                  _ble.sessionActive.value ? "Resume Session" : "Start Session",
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  shape:
-                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 28),
-
-          // ── Session history header ──
           Row(
             children: [
               Text("Session History",
@@ -224,7 +326,6 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
           if (_sessions.isEmpty)
             Card(
               child: Padding(
@@ -268,13 +369,7 @@ class _StatBox extends StatelessWidget {
   final Color iconColor;
   final String label;
   final String value;
-
-  const _StatBox({
-    required this.icon,
-    required this.iconColor,
-    required this.label,
-    required this.value,
-  });
+  const _StatBox({required this.icon, required this.iconColor, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -289,11 +384,8 @@ class _StatBox extends StatelessWidget {
           children: [
             Icon(icon, size: 22, color: iconColor),
             const SizedBox(height: 6),
-            Text(value,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15)),
-            Text(label,
-                style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
           ],
         ),
       ),
@@ -304,7 +396,6 @@ class _StatBox extends StatelessWidget {
 class _SessionCard extends StatelessWidget {
   final SessionData session;
   final VoidCallback? onTap;
-
   const _SessionCard({required this.session, this.onTap});
 
   String _fmtDur(Duration d) {
@@ -315,11 +406,8 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final date =
-        "${session.startTime.day.toString().padLeft(2, '0')}/${session.startTime.month.toString().padLeft(2, '0')}/${session.startTime.year}";
-    final time =
-        "${session.startTime.hour.toString().padLeft(2, '0')}:${session.startTime.minute.toString().padLeft(2, '0')}";
-
+    final date = "${session.startTime.day.toString().padLeft(2, '0')}/${session.startTime.month.toString().padLeft(2, '0')}/${session.startTime.year}";
+    final time = "${session.startTime.hour.toString().padLeft(2, '0')}:${session.startTime.minute.toString().padLeft(2, '0')}";
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
@@ -330,8 +418,7 @@ class _SessionCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 44, height: 44,
                 decoration: BoxDecoration(
                   color: cs.primary.withAlpha(25),
                   borderRadius: BorderRadius.circular(12),
@@ -343,13 +430,10 @@ class _SessionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("$date · $time",
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text("$date · $time", style: const TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    Text(
-                      "${_fmtDur(session.duration)}  ·  ${session.totalDistance.toStringAsFixed(0)}m",
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                    ),
+                    Text("${_fmtDur(session.duration)}  ·  ${session.totalDistance.toStringAsFixed(0)}m",
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                   ],
                 ),
               ),
@@ -361,17 +445,12 @@ class _SessionCard extends StatelessWidget {
                       Icon(Icons.flash_on, size: 14, color: Colors.amber[300]),
                       const SizedBox(width: 2),
                       Text("${session.sprintCount}",
-                          style: TextStyle(
-                              color: Colors.amber[300],
-                              fontWeight: FontWeight.w600)),
+                          style: TextStyle(color: Colors.amber[300], fontWeight: FontWeight.w600)),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text("${session.maxSpeed.toStringAsFixed(1)} km/h",
-                      style: TextStyle(
-                          color: Colors.orange[300],
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13)),
+                      style: TextStyle(color: Colors.orange[300], fontWeight: FontWeight.w600, fontSize: 13)),
                 ],
               ),
               const SizedBox(width: 4),
