@@ -56,6 +56,8 @@
 #define HR_LED_SLOW          2000
 #define HR_LED_MED           1000
 #define HR_LED_FAST          400
+#define STATIONARY_THRESHOLD_M 3.0
+#define FORCE_SEND_INTERVAL  30000
 
 // ── GPS ────────────────────────────────────────────────
 TinyGPSPlus gps;
@@ -567,7 +569,7 @@ void loop() {
     else digitalWrite(LED_GREEN, (millis() / 500) % 2 == 0 ? LOW : HIGH);
   }
 
-  // 1s data notify
+  // 1s data notify with anti-stationary filter
   if (sessionActive && millis() - lastNotifyTime >= NOTIFY_INTERVAL) {
     lastNotifyTime = millis();
     readMPU6050();
@@ -582,36 +584,47 @@ void loop() {
     uint8_t bat = batteryPercent(readBatteryVoltage());
     float netAccel = computeNetAccel();
 
-    // Sign from speed delta (positive = speeding up)
-    static float prevSpeed = 0;
-    float signedAccel = (speed >= prevSpeed) ? netAccel : -netAccel;
-    prevSpeed = speed;
+    // Anti-stationary: skip if moved less than threshold (force send every 30s)
+    static double lastLat = 0, lastLng = 0;
+    static unsigned long lastSentMs = 0;
+    bool moving = speed > 0.5 ||
+      TinyGPSPlus::distanceBetween(lat, lng, lastLat, lastLng) >= STATIONARY_THRESHOLD_M;
+    bool forceSend = (millis() - lastSentMs) >= FORCE_SEND_INTERVAL;
+    bool shouldSend = moving || forceSend || lastSentMs == 0;
+    if (shouldSend) {
+      lastLat = lat; lastLng = lng; lastSentMs = millis();
 
-    char json[JSON_BUF_SIZE];
-    snprintf(json, sizeof(json),
-      "{"
-      "\"v\":\"%s\","
-      "\"lat\":%.6f,"
-      "\"lng\":%.6f,"
-      "\"speed\":%.1f,"
-      "\"alt\":%.1f,"
-      "\"hr\":%.0f,"
-      "\"sat\":%d,"
-      "\"hdop\":%.1f,"
-      "\"bat\":%d,"
-      "\"accel\":%.2f"
-      "}",
-      FIRMWARE_VERSION,
-      lat, lng, speed, alt, hr, sat, hdop, bat, signedAccel
-    );
+      // Sign from speed delta (positive = speeding up)
+      static float prevSpeed = 0;
+      float signedAccel = (speed >= prevSpeed) ? netAccel : -netAccel;
+      prevSpeed = speed;
 
-    if (deviceConnected) {
-      pDataChar->setValue(json);
-      pDataChar->notify();
-    } else {
-      cachePoint(json);
+      char json[JSON_BUF_SIZE];
+      snprintf(json, sizeof(json),
+        "{"
+        "\"v\":\"%s\","
+        "\"lat\":%.6f,"
+        "\"lng\":%.6f,"
+        "\"speed\":%.1f,"
+        "\"alt\":%.1f,"
+        "\"hr\":%.0f,"
+        "\"sat\":%d,"
+        "\"hdop\":%.1f,"
+        "\"bat\":%d,"
+        "\"accel\":%.2f"
+        "}",
+        FIRMWARE_VERSION,
+        lat, lng, speed, alt, hr, sat, hdop, bat, signedAccel
+      );
+
+      if (deviceConnected) {
+        pDataChar->setValue(json);
+        pDataChar->notify();
+      } else {
+        cachePoint(json);
+      }
+      Serial.println(json);
     }
-    Serial.println(json);
   }
 
   // Battery notify every 60s
