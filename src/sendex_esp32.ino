@@ -4,8 +4,9 @@
     - GPS: NEO-6M (SoftwareSerial RX=16, TX=17)
     - HR: MAX30102 (I2C 0x57, SDA=21, SCL=22)
     - Accel: MPU6050 (I2C 0x68, same bus)
-    - Button: GPIO 7 (INPUT_PULLUP, hold 3s toggle session)
-    - LEDs: Green=8, Blue=9
+    - Button GPIO 7: hold 3s → toggle session
+    - Button GPIO 0 (BOOT): tap → battery level on blue LED
+    - LEDs: Green=8 (session / GPS fix), Blue=9 (session active / battery)
     - Battery ADC: GPIO 35 (voltage divider 2:1)
 */
 
@@ -22,6 +23,7 @@
 #define GPS_RX_PIN  16
 #define GPS_TX_PIN  17
 #define BTN_PIN     7
+#define BTN_BOOT_PIN 0
 #define LED_GREEN   8
 #define LED_BLUE    9
 #define BAT_ADC     35
@@ -295,6 +297,32 @@ void handleButton() {
   if (!pressed) holdActive = false;
 }
 
+// ── Boot button (GPIO 0, tap → show battery on blue LED) ──
+void showBatteryOnLED() {
+  uint8_t pct = batteryPercent(readBatteryVoltage());
+  int blinks = pct / 10;
+  if (blinks == 0 && pct > 0) blinks = 1;
+  for (int i = 0; i < blinks; i++) {
+    digitalWrite(LED_BLUE, HIGH);
+    delay(150);
+    digitalWrite(LED_BLUE, LOW);
+    delay(300);
+  }
+  digitalWrite(LED_BLUE, sessionActive ? HIGH : LOW);
+}
+
+void handleBootButton() {
+  static int lastBoot = HIGH;
+  static unsigned long bootDownMs = 0;
+  int raw = digitalRead(BTN_BOOT_PIN);
+  if (raw == LOW && lastBoot == HIGH) bootDownMs = millis();
+  if (raw == HIGH && lastBoot == LOW) {
+    unsigned long elapsed = millis() - bootDownMs;
+    if (elapsed > 30 && elapsed < 1000) showBatteryOnLED();
+  }
+  lastBoot = raw;
+}
+
 // ═══════════════════════════════════════════════════════
 //  BLE commands
 // ═══════════════════════════════════════════════════════
@@ -398,6 +426,7 @@ void setup() {
   Serial.printf("\nSendex ESP32 %s booting...\n", FIRMWARE_VERSION);
 
   pinMode(BTN_PIN, INPUT_PULLUP);
+  pinMode(BTN_BOOT_PIN, INPUT_PULLUP);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   digitalWrite(LED_GREEN, HIGH);
@@ -480,6 +509,7 @@ void setup() {
 // ═══════════════════════════════════════════════════════
 void loop() {
   handleButton();
+  handleBootButton();
 
   while (gpsSerial.available() > 0) gps.encode(gpsSerial.read());
 
