@@ -210,7 +210,7 @@ void flushCache() {
 void handleButton() {
   static int lastState = HIGH;
   static unsigned long lastStableMs = 0;
-  static boolHold = false;
+  static bool boolHold = false;
 
   int raw = digitalRead(BTN_PIN);
   unsigned long now = millis();
