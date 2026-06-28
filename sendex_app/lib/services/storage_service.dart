@@ -120,6 +120,15 @@ class StorageService {
     await _prefs?.setString('accounts', jsonEncode(accounts));
   }
 
+  String? get lastDeviceAddress => _prefs?.getString('lastDeviceAddress');
+  set lastDeviceAddress(String? v) {
+    if (v == null) {
+      _prefs?.remove('lastDeviceAddress');
+    } else {
+      _prefs?.setString('lastDeviceAddress', v);
+    }
+  }
+
   Future<bool> register(String email, String password, String role, String displayName) async {
     final accounts = _getAccounts();
     if (accounts.containsKey(email)) return false;

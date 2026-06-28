@@ -23,6 +23,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   List<DeviceInfo> _devices = [];
   List<ScanResult> _scanResults = [];
   bool _scanning = false;
+  bool _autoReconnecting = false;
 
   int get _maxDevices => _storage.role == 'club' ? 11 : 1;
   bool get _canAdd => _devices.length < _maxDevices;
@@ -39,7 +40,30 @@ class _DevicesScreenState extends State<DevicesScreen> {
       setState(() {
         _scanResults = results.where(_isSendexDevice).toList();
       });
+      _tryAutoReconnect();
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoReconnect());
+  }
+
+  Future<void> _tryAutoReconnect() async {
+    final addr = _storage.lastDeviceAddress;
+    if (addr == null || _autoReconnecting || _ble.isConnected) return;
+    final saved = _devices.where((d) => d.address == addr).toList();
+    if (saved.isEmpty) return;
+    _autoReconnecting = true;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Auto-connecting to vest..."), duration: Duration(seconds: 2)),
+      );
+    }
+    try {
+      final remoteId = DeviceIdentifier(addr);
+      final d = BluetoothDevice(remoteId: remoteId);
+      await _ble.connect(d);
+    } catch (_) {
+      // auto-reconnect failed, user can scan manually
+    }
+    _autoReconnecting = false;
   }
 
   Future<void> _scan() async {

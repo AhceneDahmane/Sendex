@@ -44,12 +44,17 @@
 // ── Constants ──────────────────────────────────────────
 #define NOTIFY_INTERVAL      1000
 #define BATT_NOTIFY_INTERVAL 60000
+#define BATT_CHECK_INTERVAL  10000
+#define BATT_LOW_THRESHOLD   10
 #define HOLD_DURATION        3000
 #define DEBOUNCE_DELAY       50
 #define MAX_POINTS_CACHE     3600
 #define JSON_BUF_SIZE        512
 #define DEEP_SLEEP_TIMEOUT   60000
 #define PPG_RING_SIZE        64
+#define HR_LED_SLOW          2000
+#define HR_LED_MED           1000
+#define HR_LED_FAST          400
 
 // ── GPS ────────────────────────────────────────────────
 TinyGPSPlus gps;
@@ -283,8 +288,8 @@ void handleButton() {
     lastBtnPressMs = now;
     holdActive = true;
     sessionActive = !sessionActive;
-    digitalWrite(LED_GREEN, sessionActive ? LOW : HIGH);
-    digitalWrite(LED_BLUE, sessionActive ? HIGH : LOW);
+    digitalWrite(LED_GREEN, sessionActive ? LOW : HIGH);  // GREEN = session ON
+    ledcWrite(0, sessionActive ? 0 : 0);                  // reset blue before HR takes over
     if (sessionActive) {
       sessionStartMs = now;
       sessionStopMs = 0;
@@ -308,7 +313,7 @@ void showBatteryOnLED() {
     digitalWrite(LED_BLUE, LOW);
     delay(300);
   }
-  digitalWrite(LED_BLUE, sessionActive ? HIGH : LOW);
+  ledcWrite(0, sessionActive ? 128 : 0); // mid-bright if session active
 }
 
 void handleBootButton() {
@@ -321,6 +326,31 @@ void handleBootButton() {
     if (elapsed > 30 && elapsed < 1000) showBatteryOnLED();
   }
   lastBoot = raw;
+}
+
+// ── Low battery auto-sleep ──────────────────────────────
+void checkBatteryLevel() {
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck < BATT_CHECK_INTERVAL) return;
+  lastCheck = millis();
+  uint8_t pct = batteryPercent(readBatteryVoltage());
+  if (pct < BATT_LOW_THRESHOLD) {
+    Serial.printf("Battery %d%%, deep sleep\n", pct);
+    enterDeepSleep();
+  }
+}
+
+// ── HR zone LED (blue, pulse rate follows heart rate) ──
+void updateHRLED(float hr) {
+  if (!sessionActive) { ledcWrite(0, 0); return; }
+  int period = hr < 120 ? HR_LED_SLOW : hr < 150 ? HR_LED_MED : HR_LED_FAST;
+  int half = period / 2;
+  unsigned long t = millis() % period;
+  // Fade up first half, fade down second half
+  int brightness = t < half
+      ? (255 * t) / half
+      : 255 - (255 * (t - half)) / half;
+  ledcWrite(0, brightness);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -338,7 +368,7 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
         sessionStartMs = millis();
         sessionStopMs = 0;
         digitalWrite(LED_GREEN, LOW);
-        digitalWrite(LED_BLUE, HIGH);
+        ledcWrite(0, 0);
         c->setValue("OK:START");
       } else {
         c->setValue("ERR:ALREADY_STARTED");
@@ -348,7 +378,7 @@ class CmdCallbacks : public BLECharacteristicCallbacks {
         sessionActive = false;
         sessionStopMs = millis();
         digitalWrite(LED_GREEN, HIGH);
-        digitalWrite(LED_BLUE, LOW);
+        ledcWrite(0, 0);
         c->setValue("OK:STOP");
       } else {
         c->setValue("ERR:NOT_STARTED");
@@ -429,8 +459,12 @@ void setup() {
   pinMode(BTN_BOOT_PIN, INPUT_PULLUP);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
+
+  // LEDC PWM on blue LED (HR zone feedback)
+  ledcSetup(0, 5000, 8);
+  ledcAttachPin(LED_BLUE, 0);
   digitalWrite(LED_GREEN, HIGH);
-  digitalWrite(LED_BLUE, LOW);
+  ledcWrite(0, 0); // blue LED OFF
 
   Wire.begin(I2C_SDA, I2C_SCL);
 
@@ -461,7 +495,7 @@ void setup() {
     sessionActive = true;
     sessionStartMs = millis() - (millis() - prefs.getULong("sessionStart", millis()));
     digitalWrite(LED_GREEN, LOW);
-    digitalWrite(LED_BLUE, HIGH);
+    ledcWrite(0, 0);
     Serial.println("Session restored from NVS");
   }
 
@@ -510,8 +544,14 @@ void setup() {
 void loop() {
   handleButton();
   handleBootButton();
+  checkBatteryLevel();
 
   while (gpsSerial.available() > 0) gps.encode(gpsSerial.read());
+
+  // Read HR once per loop (used for notify + LED)
+  static float lastHR = 72.0;
+  if (sessionActive) lastHR = hrSensorPresent ? ppgHeartRate() : readSimulatedHR();
+  updateHRLED(lastHR);
 
   // GPS fix LED
   if (gps.location.isValid() && gps.satellites.value() >= 3) lastGpsFixMs = millis();
@@ -532,7 +572,7 @@ void loop() {
     float alt = gps.altitude.isValid() ? gps.altitude.meters() : 0.0;
     int sat = gps.satellites.isValid() ? gps.satellites.value() : 0;
     float hdop = gps.hdop.isValid() ? gps.hdop.hdop() : 99.9;
-    float hr = hrSensorPresent ? ppgHeartRate() : readSimulatedHR();
+    float hr = lastHR;
     uint8_t bat = batteryPercent(readBatteryVoltage());
     float netAccel = computeNetAccel();
 

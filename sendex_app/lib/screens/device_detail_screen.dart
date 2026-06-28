@@ -71,6 +71,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
       final remoteId = DeviceIdentifier(_device.address);
       final d = BluetoothDevice(remoteId: remoteId);
       await _ble.connect(d);
+      _storage.lastDeviceAddress = _device.address;
       _dataSub = _ble.dataStream.listen((p) {
         if (_liveBattery != p.battery && p.battery > 0) {
           setState(() => _liveBattery = p.battery);
