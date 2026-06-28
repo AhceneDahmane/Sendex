@@ -66,14 +66,28 @@ class _SessionScreenState extends State<SessionScreen> {
   void _startSession() {
     _active = true;
     _startTime = DateTime.now();
-    _points = [];
     _prevSpeed = 0;
 
     if (_useBle) {
+      // Prepend any buffered data from before (phone was off, etc.)
+      final buffered = widget.bleService!.takePendingData();
+      _points = buffered.map((fp) => GpsPoint(
+        lat: fp.lat,
+        lng: fp.lng,
+        speed: fp.speed,
+        heartRate: fp.heartRate,
+        acceleration: fp.accel,
+      )).toList();
+      if (_points.isNotEmpty) {
+        _currentSpeed = _points.last.speed;
+        _prevSpeed = _currentSpeed;
+      }
+
       widget.bleService!.writeCommand("START");
       _bleSub?.cancel();
       _bleSub = widget.bleService!.dataStream.listen(_onBlePoint);
     } else {
+      _points = [];
       _timer = Timer.periodic(const Duration(seconds: 1), (_) => _simulatePoint());
     }
   }

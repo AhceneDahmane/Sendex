@@ -62,10 +62,24 @@ class BleService {
   final ValueNotifier<String> firmwareVersion = ValueNotifier('');
   final ValueNotifier<bool> sessionActive = ValueNotifier(false);
 
+  /// Buffer that holds all incoming BLE data, even when no screen listens.
+  /// Survives phone restart — if the vest was in session while phone was off,
+  /// these points are available when the user opens the app again.
+  final List<FirmwarePoint> _pendingPoints = [];
+  static const int _maxPending = 7200; // 2h at 1Hz
+
   Stream<FirmwarePoint> get dataStream => _dataController.stream;
   Stream<List<ScanResult>> get scanStream => _scanController.stream;
   bool get isConnected => _device != null && connectionState.value == BleConnectionState.connected;
   BluetoothDevice? get device => _device;
+  int get pendingCount => _pendingPoints.length;
+  List<FirmwarePoint> get pendingPoints => List.unmodifiable(_pendingPoints);
+
+  List<FirmwarePoint> takePendingData() {
+    final result = List<FirmwarePoint>.from(_pendingPoints);
+    _pendingPoints.clear();
+    return result;
+  }
 
   static const String serviceUuid = "FFF0";
   static const String dataCharUuid = "FFF1";
@@ -126,6 +140,10 @@ class BleService {
       final point = FirmwarePoint.fromJson(parsed);
       if (point.battery > 0) batteryLevel.value = point.battery;
       if (point.version.isNotEmpty) firmwareVersion.value = point.version;
+      // Always buffer — survives screen changes or phone restart
+      if (_pendingPoints.length < _maxPending) {
+        _pendingPoints.add(point);
+      }
       _dataController.add(point);
     } catch (_) {}
   }
@@ -144,7 +162,6 @@ class BleService {
     _device = null;
     _cmdChar = null;
     connectionState.value = BleConnectionState.disconnected;
-    sessionActive.value = false;
   }
 
   void dispose() {

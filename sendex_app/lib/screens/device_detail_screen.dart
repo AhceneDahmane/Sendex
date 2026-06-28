@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../models/device_info.dart';
+import '../models/gps_point.dart';
 import '../models/session_data.dart';
 import '../services/storage_service.dart';
 import '../services/ble_service.dart';
@@ -53,6 +54,42 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
         _liveBattery > 0) {
       _device = _device.copyWith(batteryLevel: _liveBattery);
       _storage.saveDevice(_device);
+    }
+    if (_ble.connectionState.value == BleConnectionState.connected &&
+        _ble.pendingCount > 0) {
+      // Delay to let flushCache finish before checking
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  Future<void> _savePendingSession() async {
+    final points = _ble.takePendingData();
+    if (points.isEmpty) return;
+    final now = DateTime.now();
+    final start = now.subtract(const Duration(seconds: 1));
+    final gpsPoints = points.map((fp) => GpsPoint(
+      lat: fp.lat,
+      lng: fp.lng,
+      speed: fp.speed,
+      heartRate: fp.heartRate,
+      acceleration: fp.accel,
+    )).toList();
+    final session = SessionData(
+      id: "recovered-${now.millisecondsSinceEpoch}",
+      deviceId: _device.id,
+      playerName: _storage.playerName ?? _device.ownerName,
+      startTime: start,
+      endTime: now,
+      points: gpsPoints,
+    );
+    await _storage.saveSession(_device.id, session);
+    setState(() => _sessions = _storage.getSessions(_device.id));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Recovered session with ${points.length} data points")),
+      );
     }
   }
 
@@ -282,6 +319,63 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // ── Pending data recovery banner ──
+          if (_ble.connectionState.value == BleConnectionState.connected &&
+              _ble.pendingCount >= 10)
+            Card(
+              color: Colors.orange[900],
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_download, color: Colors.white, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("${_ble.pendingCount} data points pending",
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 14)),
+                          const SizedBox(height: 2),
+                          Text("Phone was off during session",
+                              style: TextStyle(fontSize: 12, color: Colors.orange[200])),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        final count = _ble.pendingCount;
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text("Recover session?"),
+                            content: Text("Save $count data points as a session?"),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text("Discard"),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  _savePendingSession();
+                                },
+                                child: const Text("Save"),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: const Text("Save", style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
           SizedBox(
             width: double.infinity,
             height: 54,
