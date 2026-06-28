@@ -18,6 +18,7 @@
 #include <SoftwareSerial.h>
 #include <Wire.h>
 #include <Preferences.h>
+#include "esp_pm.h"
 
 // ── Pins ───────────────────────────────────────────────
 #define GPS_RX_PIN  16
@@ -459,6 +460,11 @@ void setup() {
   pinMode(BTN_BOOT_PIN, INPUT_PULLUP);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
+
+  // Power management: reduce CPU freq from 240 to 160 MHz, auto DFS
+  setCpuFrequencyMhz(160);
+  esp_pm_config_esp32_t pm = { .max_freq_mhz = 160, .min_freq_mhz = 80, .light_sleep_enable = false };
+  esp_pm_configure(&pm);
 
   // LEDC PWM on blue LED (HR zone feedback)
   ledcSetup(0, 5000, 8);
