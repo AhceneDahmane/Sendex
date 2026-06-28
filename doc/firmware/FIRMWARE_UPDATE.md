@@ -7,6 +7,24 @@ The Sendex vest runs on an ESP32 microcontroller. Firmware updates are delivered
 1. **Web Serial Installer** (recommended) — browser-based, zero install
 2. **esptool.py** (manual fallback) — requires Python
 
+Current version: **v1.3.0**
+
+### Firmware highlights (v1.3.0)
+
+- BLE FFF0/FFF1 notify + FFF2 write commands (START/STOP/STATUS/PING/SLEEP)
+- GPS NEO-6M (UART2, pins 16/17) + TinyGPSPlus
+- MAX30102 PPG (I2C 0x57) — 64-sample ring buffer, adaptive peak detection, DC removal
+- MPU6050 accelerometer (I2C 0x68) — net accel in JSON with speed-delta sign
+- NVS flash cache — 3600 points, survives power loss and deep sleep
+- Deep sleep — 60s idle + wake on GPIO 7, state saved in NVS
+- DFS modem sleep — CPU 160MHz, auto 80–160MHz scaling
+- Anti-stationary filter — skip if <3m AND <0.5km/h, force-send every 30s
+- HR zone blue LED (PWM) — period adapts to HR
+- Low battery auto-sleep — deep sleep if <10%
+- Button debounce — 50ms + anti-repeat
+- GPS watchdog — auto-reset if 30s no data during session
+- Firmware version in every JSON payload
+
 ---
 
 ## 1. Web Serial Installer (recommended)
@@ -55,7 +73,7 @@ pip install esptool
 3. Flash:
 
 ```bash
-esptool.py --chip esp32 --port COM3 write_flash 0x0 sendex-firmware-v1.2.3.bin
+esptool.py --chip esp32 --port COM3 write_flash 0x0 sendex-firmware-v1.3.0.bin
 ```
 
 Replace `COM3` with the actual port.
@@ -87,7 +105,7 @@ arduino-cli compile --fqbn esp32:esp32:esp32 src/sendex_esp32.ino
 # Generate .bin for distribution
 arduino-cli elf2bin \
   src/sendex_esp32.ino.esp32.esp32.elf \
-  landing/update/sendex-firmware-{version}.bin
+  landing/update/sendex-firmware-v1.3.0.bin
 ```
 
 ### With PlatformIO (recommended for development)
@@ -109,6 +127,8 @@ pio run --target buildfs
 
 The firmware `.bin` will be at `.pio/build/esp32dev/firmware.bin`.
 
+**Note**: Copy the built binary to `landing/update/sendex-firmware-v1.3.0.bin` and update `firmware-manifest.json`.
+
 ---
 
 ## 4. Versioning and release workflow
@@ -119,13 +139,13 @@ The firmware `.bin` will be at `.pio/build/esp32dev/firmware.bin`.
 landing/update/
 ├── index.html                 # Web installer page
 ├── firmware-manifest.json     # ESP Web Tools manifest
-├── sendex-firmware-v1.2.3.bin # Firmware binary
+├── sendex-firmware-v1.3.0.bin # Firmware binary
 └── CHANGELOG.md               # (future) release notes
 ```
 
 ### Release steps
 
-1. Bump the version in `src/sendex_esp32.ino` (`#define FIRMWARE_VERSION "v1.2.4"`)
+1. Bump the version in `src/sendex_esp32.ino` (`#define FIRMWARE_VERSION "v1.x.x"`)
 2. Compile the firmware (see §3)
 3. Copy the `.bin` to `landing/update/sendex-firmware-{version}.bin`
 4. Update `firmware-manifest.json`:
@@ -139,13 +159,13 @@ landing/update/
 ```json
 {
   "name": "Sendex Vest",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "home_assistant_domain": "sendex",
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
-        { "path": "sendex-firmware-v1.2.3.bin", "offset": 0 }
+        { "path": "sendex-firmware-v1.3.0.bin", "offset": 0 }
       ]
     }
   ]
